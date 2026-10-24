@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Chess Game Recorder</title>
+
+    <!-- jQuery, Chessboard.js CSS/JS -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+
+    <!-- Chess.js library for rule checking & PGN formatting -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #121212;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            max-width: 1000px;
+            width: 100%;
+        }
+
+        .board-container {
+            flex: 1;
+            min-width: 320px;
+            max-width: 480px;
+        }
+
+        #board {
+            width: 100%;
+            margin-bottom: 15px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            background-color: #2b5c8f;
+            color: #fff;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 6px;
+            font-size: 15px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #3a75b5;
+        }
+
+        button.danger {
+            background-color: #a83232;
+        }
+
+        button.danger:hover {
+            background-color: #c43d3d;
+        }
+
+        button.success {
+            background-color: #2e7d32;
+        }
+
+        button.success:hover {
+            background-color: #388e3c;
+        }
+
+        button.toggle-btn {
+            background-color: #5c32a8;
+        }
+
+        button.toggle-btn:hover {
+            background-color: #6d3ec4;
+        }
+
+        .side-container {
+            flex: 1;
+            min-width: 300px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .output-box {
+            background-color: #1e1e1e;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 12px;
+            min-height: 180px;
+            max-height: 250px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 15px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        .status {
+            font-size: 14px;
+            color: #aaa;
+            padding: 8px;
+            background: #1a1a1a;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        .toast {
+            display: none;
+            padding: 8px 12px;
+            background-color: #2e7d32;
+            color: white;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <div class="board-container">
+            <div id="board"></div>
+            <div class="controls">
+                <button id="btnMode" class="toggle-btn">Mode: Click-to-Move</button>
+                <button id="btnUndo">↩ Undo</button>
+                <button id="btnFlip">🔄 Flip</button>
+                <button id="btnReset" class="danger">⚠️ Reset</button>
+            </div>
+            <div class="status" id="statusText">White's turn to move.</div>
+        </div>
+
+        <div class="side-container">
+            <h2>Live Move Notation</h2>
+            <div class="output-box" id="notationBox">1. </div>
+
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <button id="btnCopy" class="success">📋 Copy Line Notation</button>
+                <button id="btnCopyPGN">📋 Copy Standard PGN</button>
+                <div class="toast" id="toast">Copied!</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let board = null;
+        let game = new Chess();
+        let inputMode = 'click'; // 'click' or 'drag'
+        let selectedSquare = null;
+
+        function initBoard() {
+            let config = {
+                position: game.fen(),
+                draggable: (inputMode === 'drag'),
+                pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
+                onDragStart: onDragStart,
+                onDrop: onDrop,
+                onSnapEnd: onSnapEnd
+            };
+
+            if (board) {
+                board.destroy();
+            }
+            board = Chessboard('board', config);
+        }
+
+        function onDragStart(source, piece, position, orientation) {
+            if (game.game_over() || inputMode !== 'drag') return false;
+            if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
+                (game.turn() === 'b' && piece.search(/^w/) !== -1)) {
+                return false;
+            }
+        }
+
+        function onDrop(source, target) {
+            let move = game.move({
+                from: source,
+                to: target,
+                promotion: 'q'
+            });
+            if (move === null) return 'snapback';
+            updateUI();
+        }
+
+        function onSnapEnd() {
+            board.position(game.fen());
+        }
+
+        // Click-to-move handling
+        $(document).on('click', '#board .square-55d63', function () {
+            if (inputMode !== 'click') return;
+            let square = $(this).attr('data-square');
+
+            if (!selectedSquare) {
+                let piece = game.get(square);
+                if (piece && piece.color === game.turn()) {
+                    selectedSquare = square;
+                    highlightSquare(square);
+                    highlightLegalMoves(square);
+                }
+            } else {
+                if (selectedSquare === square) {
+                    clearHighlights();
+                    selectedSquare = null;
+                    return;
+                }
+
+                let move = game.move({
+                    from: selectedSquare,
+                    to: square,
+                    promotion: 'q'
+                });
+
+                clearHighlights();
+                selectedSquare = null;
+
+                if (move === null) {
+                    // If invalid target, check if clicking another own piece to switch selection
+                    let piece = game.get(square);
+                    if (piece && piece.color === game.turn()) {
+                        selectedSquare = square;
+                        highlightSquare(square);
+                        highlightLegalMoves(square);
+                    }
+                } else {
+                    updateUI();
+                }
+            }
+        });
+
+        function highlightSquare(square) {
+            $(`#board [data-square="${square}"]`).css('background', '#baca2b');
+        }
+
+        function highlightLegalMoves(square) {
+            let legalMoves = game.moves({ square: square, verbose: true });
+            legalMoves.forEach(m => {
+                $(`#board [data-square="${m.to}"]`).css('background', 'rgba(245, 221, 39, 0.43)');
+            });
+        }
+
+        function clearHighlights() {
+            $('#board [data-square]').css('background', '');
+        }
+
+        function updateUI() {
+            clearHighlights();
+            selectedSquare = null;
+            board.position(game.fen());
+            updateStatus();
+            updateNotation();
+        }
+
+        function updateStatus() {
+            let status = '';
+            let moveColor = (game.turn() === 'w') ? 'White' : 'Black';
+
+            if (game.in_checkmate()) {
+                status = `Game over, ${moveColor} is in checkmate.`;
+            } else if (game.in_draw()) {
+                status = 'Game over, drawn position.';
+            } else {
+                status = `${moveColor}'s turn to move.`;
+                if (game.in_check()) {
+                    status += ` (${moveColor} is in CHECK!)`;
+                }
+            }
+            $('#statusText').text(status);
+        }
+
+        function updateNotation() {
+            let history = game.history({ verbose: true });
+            if (history.length === 0) {
+                $('#notationBox').text('1. ');
+                return;
+            }
+
+            let notationText = '';
+            for (let i = 0; i < history.length; i += 2) {
+                let moveNum = Math.floor(i / 2) + 1;
+                let whiteMove = history[i] ? history[i].san : '';
+                let blackMove = history[i + 1] ? history[i + 1].san : '';
+                notationText += `${moveNum}. ${whiteMove} ${blackMove}\n`;
+            }
+
+            $('#notationBox').text(notationText.trim());
+        }
+
+        // Button Listeners
+        $('#btnMode').on('click', function () {
+            inputMode = (inputMode === 'click') ? 'drag' : 'click';
+            if (inputMode === 'click') {
+                $(this).text('Mode: Click-to-Move');
+            } else {
+                $(this).text('Mode: Drag-and-Drop');
+            }
+            initBoard();
+            updateUI();
+        });
+
+        $('#btnUndo').on('click', function () {
+            game.undo();
+            updateUI();
+        });
+
+        $('#btnFlip').on('click', function () {
+            board.flip();
+        });
+
+        $('#btnReset').on('click', function () {
+            if (confirm('Are you sure you want to reset the board?')) {
+                game.reset();
+                updateUI();
+            }
+        });
+
+        $('#btnCopy').on('click', function () {
+            let text = $('#notationBox').text();
+            navigator.clipboard.writeText(text).then(() => showToast());
+        });
+
+        $('#btnCopyPGN').on('click', function () {
+            let pgn = game.pgn();
+            navigator.clipboard.writeText(pgn).then(() => showToast());
+        });
+
+        function showToast() {
+            $('#toast').fadeIn(200).delay(1200).fadeOut(200);
+        }
+
+        // Initialize on load
+        $(document).ready(function () {
+            initBoard();
+            updateUI();
+        });
+    </script>
+
+</body>
+
+</html>
