@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Chess } from 'chess.js';
 import { io } from 'socket.io-client';
+import { getNextValidMoveHint } from './features/gameFeatures';
 
 const SOCKET_URL = 'https://chess-server-c5fk.onrender.com';
 const socket = io(SOCKET_URL);
@@ -36,10 +37,7 @@ export default function MultiplayerChessApp() {
   const [blackTime, setBlackTime] = useState(null);
 
   // Gameplay Settings
-  const [maxIllegalMoves, setMaxIllegalMoves] = useState(3);
-  const [illegalCount, setIllegalCount] = useState(0);
   const [alertOnCheck, setAlertOnCheck] = useState(true);
-  const [showNextValidMove, setShowNextValidMove] = useState(false);
 
   // Chat State
   const [chatMessages, setChatMessages] = useState([]);
@@ -191,7 +189,6 @@ export default function MultiplayerChessApp() {
       setMoveHistory([]);
       setChatMessages([]);
       setDrawOffered(false);
-      setIllegalCount(0);
       if (wt !== undefined) setWhiteTime(wt);
       if (bt !== undefined) setBlackTime(bt);
       setRefreshKey(prev => prev + 1);
@@ -378,15 +375,7 @@ export default function MultiplayerChessApp() {
         return true;
       }
     } catch {
-      const nextIllegal = illegalCount + 1;
-      setIllegalCount(nextIllegal);
-      if (nextIllegal >= maxIllegalMoves) {
-        setIsGameOver(true);
-        const winner = chessGame.turn() === 'w' ? 'Black' : 'White';
-        setStatusText(`❌ Max illegal moves exceeded! ${winner} wins by default.`);
-      } else {
-        showToast(`⚠️ Illegal move! (${nextIllegal}/${maxIllegalMoves} allowed)`);
-      }
+      showToast("⚠️ Invalid move!");
     }
     return false;
   };
@@ -597,21 +586,11 @@ export default function MultiplayerChessApp() {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const getNextValidMoveHint = () => {
-    if (!showNextValidMove || isGameOver || isReviewing) return null;
-    if (playerColor && chessGame.turn() !== playerColor) return null;
-    const moves = chessGame.moves({ verbose: true });
-    if (moves.length === 0) return null;
-    const hint = moves[0];
-    return `${hint.from.toUpperCase()} ➔ ${hint.to.toUpperCase()} (${hint.san})`;
-  };
-
   const checkKingSquare = chessGame.inCheck() ? getKingSquare(chessGame.turn()) : null;
   const capturedInfo = getCapturedPieces();
   const lastMove = isReviewing && reviewIndex >= 0
     ? moveHistory[reviewIndex]
     : (moveHistory.length > 0 ? moveHistory[moveHistory.length - 1] : null);
-  const nextMoveHintText = getNextValidMoveHint();
 
   // --- Render Lobby ---
   if (inLobby) {
@@ -655,22 +634,9 @@ export default function MultiplayerChessApp() {
           </div>
 
           <div style={{ marginBottom: '15px', textAlign: 'left', backgroundColor: '#161616', padding: '10px', borderRadius: '6px', border: '1px solid #333', fontSize: '12px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', alignItems: 'center' }}>
-              <span>Max Illegal Moves:</span>
-              <select value={maxIllegalMoves} onChange={(e) => setMaxIllegalMoves(Number(e.target.value))} style={{ backgroundColor: '#121212', color: '#fff', border: '1px solid #444', padding: '4px', borderRadius: '4px' }}>
-                <option value={1}>1</option>
-                <option value={3}>3</option>
-                <option value={5}>5</option>
-                <option value={10}>10</option>
-              </select>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', alignItems: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>Alert on Check:</span>
               <input type="checkbox" checked={alertOnCheck} onChange={(e) => setAlertOnCheck(e.target.checked)} />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>Show Next Valid Move:</span>
-              <input type="checkbox" checked={showNextValidMove} onChange={(e) => setShowNextValidMove(e.target.checked)} />
             </div>
           </div>
 
@@ -867,12 +833,6 @@ export default function MultiplayerChessApp() {
           <span style={{ color: '#ffcc00' }}>{capturedInfo.whiteAdvantage}</span>
         </div>
 
-        {showNextValidMove && nextMoveHintText && !isGameOver && !isReviewing && (
-          <div style={styles.hintBanner}>
-            💡 Suggested Valid Move: <strong>{nextMoveHintText}</strong>
-          </div>
-        )}
-
         <div style={styles.controls}>
           <button
             style={{ ...styles.button, backgroundColor: '#d97706' }}
@@ -1033,7 +993,6 @@ const styles = {
   drawBanner: { width: '100%', maxWidth: '420px', backgroundColor: '#9a3412', color: '#fff', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', boxSizing: 'border-box' },
   timerBar: { width: '100%', maxWidth: '420px', display: 'flex', justifyContent: 'space-between', marginBottom: '6px', gap: '8px' },
   clockBox: { flex: 1, backgroundColor: '#1a1a1a', border: '2px solid #444', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', textAlign: 'center', color: '#fff', boxSizing: 'border-box' },
-  hintBanner: { width: '100%', maxWidth: '420px', backgroundColor: '#1e3a8a', color: '#fff', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', textAlign: 'center', marginBottom: '6px', boxSizing: 'border-box' },
   capturedBar: { width: '100%', maxWidth: '420px', display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#bbb', backgroundColor: '#1a1a1a', padding: '4px 8px', borderRadius: '4px', marginBottom: '6px', boxSizing: 'border-box' },
   boardWrapper: { width: '100%', maxWidth: '420px', aspectRatio: '1 / 1', margin: '0 auto 6px auto', position: 'relative' },
   boardGrid: { display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gridTemplateRows: 'repeat(8, 1fr)', width: '100%', height: '100%', border: '3px solid #333', borderRadius: '4px', boxSizing: 'border-box' },
