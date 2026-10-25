@@ -30,7 +30,8 @@ io.on('connection', (socket) => {
       rooms[roomCode] = {
         players: [],
         pgn: '', // Store PGN string instead of FEN
-        history: []
+        history: [],
+        chat: []
       };
     }
 
@@ -59,7 +60,8 @@ io.on('connection', (socket) => {
       room: roomCode,
       players: room.players,
       pgn: room.pgn,
-      history: room.history
+      history: room.history,
+      chat: room.chat
     });
   });
 
@@ -74,10 +76,26 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('send-chat', ({ roomCode, playerName, message }) => {
+    if (rooms[roomCode]) {
+      const chatMsg = {
+        playerName,
+        message,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      rooms[roomCode].chat.push(chatMsg);
+      if (rooms[roomCode].chat.length > 50) {
+        rooms[roomCode].chat.shift();
+      }
+      io.to(roomCode).emit('chat-message', chatMsg);
+    }
+  });
+
   socket.on('reset-game', ({ roomCode }) => {
     if (rooms[roomCode]) {
       rooms[roomCode].pgn = '';
       rooms[roomCode].history = [];
+      rooms[roomCode].chat = [];
       io.to(roomCode).emit('game-reset');
     }
   });

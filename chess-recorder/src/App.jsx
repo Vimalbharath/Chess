@@ -10,6 +10,8 @@ const pieceSymbols = {
   b: { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛', k: '♚' }
 };
 
+const pieceValues = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+
 export default function MultiplayerChessApp() {
   const chessGameRef = useRef(new Chess());
   const chessGame = chessGameRef.current;
@@ -22,6 +24,10 @@ export default function MultiplayerChessApp() {
   const [playerColor, setPlayerColor] = useState(null); // 'w' or 'b'
   const [playersList, setPlayersList] = useState([]);
   const [toastMessage, setToastMessage] = useState('');
+
+  // Chat State
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
 
   // Board Sizing & Orientation
   const [isFlipped, setIsFlipped] = useState(false); // Board orientation: false = White on bottom, true = Black on bottom
@@ -38,8 +44,6 @@ export default function MultiplayerChessApp() {
   const [, setRefreshKey] = useState(0);
 
   // Auto-fill room code from URL query parameter (e.g., ?room=ABC123)
-  // Replace your useEffect socket listeners in src/App.jsx with this:
-
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const roomParam = params.get('room');
@@ -50,7 +54,7 @@ export default function MultiplayerChessApp() {
 
   // --- Socket.io Handlers ---
   useEffect(() => {
-    socket.on('room-update', ({ room, players, pgn, history }) => {
+    socket.on('room-update', ({ room, players, pgn, history, chat }) => {
       if (room) setRoomCode(room);
       setPlayersList(players || []);
 
@@ -71,6 +75,10 @@ export default function MultiplayerChessApp() {
         setMoveHistory(history);
       }
 
+      if (chat && Array.isArray(chat)) {
+        setChatMessages(chat);
+      }
+
       setInLobby(false);
       setRefreshKey(prev => prev + 1);
 
@@ -89,6 +97,10 @@ export default function MultiplayerChessApp() {
       checkGameStatus();
     });
 
+    socket.on('chat-message', (msg) => {
+      setChatMessages(prev => [...prev, msg]);
+    });
+
     socket.on('player-disconnected', ({ disconnectedPlayer }) => {
       showToast(`⚠️ ${disconnectedPlayer || 'Opponent'} disconnected! Game state is saved for reconnection.`);
     });
@@ -99,6 +111,7 @@ export default function MultiplayerChessApp() {
       setLegalMoves([]);
       setIsGameOver(false);
       setMoveHistory([]);
+      setChatMessages([]);
       setRefreshKey(prev => prev + 1);
       setStatusText("Game reset. White's turn.");
     });
@@ -112,6 +125,7 @@ export default function MultiplayerChessApp() {
       socket.off('player-disconnected');
       socket.off('room-full');
       socket.off('opponent-moved');
+      socket.off('chat-message');
       socket.off('game-reset');
     };
   }, []);
@@ -134,6 +148,49 @@ export default function MultiplayerChessApp() {
       }
     }
     return null;
+  };
+
+  const getCapturedPieces = () => {
+    const initialCounts = { p: 8, n: 2, b: 2, r: 2, q: 1 };
+    const currentCounts = { w: { p: 0, n: 0, b: 0, r: 0, q: 0 }, b: { p: 0, n: 0, b: 0, r: 0, q: 0 } };
+
+    const board = chessGame.board();
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const piece = board[r][c];
+        if (piece && piece.type !== 'k') {
+          currentCounts[piece.color][piece.type]++;
+        }
+      }
+    }
+
+    const capturedByWhite = [];
+    const capturedByBlack = [];
+
+    ['q', 'r', 'b', 'n', 'p'].forEach(type => {
+      const whiteLost = initialCounts[type] - currentCounts['w'][type];
+      for (let i = 0; i < whiteLost; i++) capturedByBlack.push(pieceSymbols['w'][type]);
+
+      const blackLost = initialCounts[type] - currentCounts['b'][type];
+      for (let i = 0; i < blackLost; i++) capturedByWhite.push(pieceSymbols['b'][type]);
+    });
+
+    // Calculate material difference
+    let whiteScore = 0;
+    let blackScore = 0;
+    Object.keys(currentCounts.w).forEach(type => {
+      whiteScore += currentCounts.w[type] * pieceValues[type];
+      blackScore += currentCounts.b[type] * pieceValues[type];
+    });
+
+    const diff = whiteScore - blackScore;
+
+    return {
+      capturedByWhite,
+      capturedByBlack,
+      whiteAdvantage: diff > 0 ? `+${diff}` : '',
+      blackAdvantage: diff < 0 ? `+${Math.abs(diff)}` : ''
+    };
   };
 
   const checkGameStatus = () => {
@@ -276,6 +333,7 @@ export default function MultiplayerChessApp() {
       setLegalMoves([]);
       setIsGameOver(false);
       setMoveHistory([]);
+      setChatMessages([]);
       setRefreshKey(prev => prev + 1);
       setStatusText("White's turn to move.");
       socket.emit('reset-game', { roomCode });
@@ -302,6 +360,17 @@ export default function MultiplayerChessApp() {
     socket.emit('join-room', { roomCode: roomInput.trim().toUpperCase(), playerName: name });
   };
 
+  const sendChat = (e) => {
+    e.preventDefault();
+    if (!chatInput.trim()) return;
+    socket.emit('send-chat', {
+      roomCode,
+      playerName: playerName || 'Player',
+      message: chatInput.trim()
+    });
+    setChatInput('');
+  };
+
   // Helper to format full move history
   const formatFullNotation = () => {
     if (!moveHistory || moveHistory.length === 0) return '1. ';
@@ -317,6 +386,7 @@ export default function MultiplayerChessApp() {
   };
 
   const checkKingSquare = chessGame.inCheck() ? getKingSquare(chessGame.turn()) : null;
+  const capturedInfo = getCapturedPieces();
 
   // --- Render Lobby ---
   if (inLobby) {
@@ -458,6 +528,12 @@ export default function MultiplayerChessApp() {
 
         {toastMessage && <div style={styles.toastBanner}>{toastMessage}</div>}
 
+        {/* Captured by Black / Top info */}
+        <div style={styles.capturedBar}>
+          <span>Black Captured: {capturedInfo.capturedByBlack.join(' ')}</span>
+          <span style={{ color: '#ffcc00' }}>{capturedInfo.blackAdvantage}</span>
+        </div>
+
         <div style={styles.boardWrapper}>
           <div style={styles.boardGrid}>{boardSquares}</div>
 
@@ -472,6 +548,12 @@ export default function MultiplayerChessApp() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Captured by White / Bottom info */}
+        <div style={styles.capturedBar}>
+          <span>White Captured: {capturedInfo.capturedByWhite.join(' ')}</span>
+          <span style={{ color: '#ffcc00' }}>{capturedInfo.whiteAdvantage}</span>
         </div>
 
         <div style={styles.controls}>
@@ -524,6 +606,33 @@ export default function MultiplayerChessApp() {
             📋 Copy PGN
           </button>
         </div>
+
+        <h2 style={styles.sectionHeader}>Room Chat</h2>
+        <div style={styles.chatBox}>
+          {chatMessages.length === 0 ? (
+            <div style={{ color: '#666', fontStyle: 'italic', fontSize: '13px' }}>No messages yet...</div>
+          ) : (
+            chatMessages.map((msg, idx) => (
+              <div key={idx} style={{ marginBottom: '6px', fontSize: '13px' }}>
+                <span style={{ color: '#ffcc00', fontWeight: 'bold' }}>{msg.playerName}: </span>
+                <span>{msg.message}</span>
+                <span style={{ color: '#666', fontSize: '10px', marginLeft: '6px' }}>{msg.timestamp}</span>
+              </div>
+            ))
+          )}
+        </div>
+        <form onSubmit={sendChat} style={{ display: 'flex', gap: '8px' }}>
+          <input
+            type="text"
+            placeholder="Type a message..."
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            style={styles.input}
+          />
+          <button type="submit" style={{ ...styles.button, backgroundColor: '#2e7d32' }}>
+            Send
+          </button>
+        </form>
       </div>
     </div>
   );
@@ -537,7 +646,8 @@ const styles = {
   boardContainer: { flex: '1 1 340px', maxWidth: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' },
   roomHeader: { display: 'flex', justifyContent: 'space-between', width: '100%', maxWidth: '420px', marginBottom: '8px', alignItems: 'center', backgroundColor: '#1a1a1a', padding: '8px 12px', borderRadius: '6px', boxSizing: 'border-box' },
   toastBanner: { width: '100%', maxWidth: '420px', backgroundColor: '#d32f2f', color: '#fff', padding: '6px', borderRadius: '4px', fontSize: '13px', textAlign: 'center', marginBottom: '8px' },
-  boardWrapper: { width: '100%', maxWidth: '420px', aspectRatio: '1 / 1', margin: '0 auto 15px auto', position: 'relative' },
+  capturedBar: { width: '100%', maxWidth: '420px', display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#bbb', backgroundColor: '#1a1a1a', padding: '4px 8px', borderRadius: '4px', marginBottom: '6px', boxSizing: 'border-box' },
+  boardWrapper: { width: '100%', maxWidth: '420px', aspectRatio: '1 / 1', margin: '0 auto 6px auto', position: 'relative' },
   boardGrid: { display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gridTemplateRows: 'repeat(8, 1fr)', width: '100%', height: '100%', border: '3px solid #333', borderRadius: '4px', boxSizing: 'border-box' },
   gameOverOverlay: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0, 0, 0, 0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, borderRadius: '4px' },
   gameOverModal: { backgroundColor: '#1e1e1e', padding: '20px 24px', borderRadius: '8px', textAlign: 'center', border: '2px solid #ffcc00', boxShadow: '0 4px 20px rgba(0,0,0,0.6)' },
@@ -553,6 +663,7 @@ const styles = {
   status: { fontSize: '14px', padding: '8px 12px', backgroundColor: '#1a1a1a', borderRadius: '4px', textAlign: 'center', width: '100%', boxSizing: 'border-box', fontWeight: 'bold' },
   sideContainer: { flex: '1 1 280px', display: 'flex', flexDirection: 'column', gap: '15px', width: '100%' },
   sectionHeader: { fontSize: 'clamp(16px, 3.5vw, 20px)', margin: '0' },
-  outputBox: { backgroundColor: '#1e1e1e', border: '1px solid #333', borderRadius: '6px', padding: '12px', minHeight: '180px', maxHeight: '250px', overflowY: 'auto', fontFamily: 'monospace', fontSize: '14px', whiteSpace: 'pre-wrap' },
+  outputBox: { backgroundColor: '#1e1e1e', border: '1px solid #333', borderRadius: '6px', padding: '12px', minHeight: '130px', maxHeight: '180px', overflowY: 'auto', fontFamily: 'monospace', fontSize: '14px', whiteSpace: 'pre-wrap' },
+  chatBox: { backgroundColor: '#1e1e1e', border: '1px solid #333', borderRadius: '6px', padding: '12px', height: '130px', overflowY: 'auto', fontFamily: 'sans-serif' },
   buttonGroup: { display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }
 };
