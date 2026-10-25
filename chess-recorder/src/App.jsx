@@ -19,11 +19,14 @@ export default function MultiplayerChessApp() {
   const [playerName, setPlayerName] = useState('');
   const [roomInput, setRoomInput] = useState('');
   const [roomCode, setRoomCode] = useState('');
-  const [playerColor, setPlayerColor] = useState(null);
+  const [playerColor, setPlayerColor] = useState(null); // 'w' or 'b'
   const [playersList, setPlayersList] = useState([]);
   const [toastMessage, setToastMessage] = useState('');
 
-  // Board State
+  // Board Sizing & Orientation
+  const [isFlipped, setIsFlipped] = useState(false); // Board orientation: false = White on bottom, true = Black on bottom
+
+  // Board & Game State
   const [moveHistory, setMoveHistory] = useState([]);
   const [statusText, setStatusText] = useState("Waiting for opponent to join...");
   const [selectedSquare, setSelectedSquare] = useState(null);
@@ -34,7 +37,7 @@ export default function MultiplayerChessApp() {
   const [isGameOver, setIsGameOver] = useState(false);
   const [, setRefreshKey] = useState(0);
 
-  // Auto-fill room code from URL query parameter (e.g., ?room=ABC123) on load
+  // Auto-fill room code from URL query parameter (e.g., ?room=ABC123)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const roomParam = params.get('room');
@@ -48,8 +51,12 @@ export default function MultiplayerChessApp() {
     socket.on('room-joined', ({ room, color, players }) => {
       setRoomCode(room);
       setPlayerColor(color);
-      setPlayersList(players);
       setInLobby(false);
+
+      // Auto-flip board if playing as Black
+      if (color === 'b') {
+        setIsFlipped(true);
+      }
 
       if (players.length < 2) {
         setStatusText(`Waiting for opponent to join room: ${room}...`);
@@ -280,6 +287,20 @@ export default function MultiplayerChessApp() {
     socket.emit('join-room', { roomCode: roomInput.trim().toUpperCase(), playerName: name });
   };
 
+  // Helper to format full move history
+  const formatFullNotation = () => {
+    if (!moveHistory || moveHistory.length === 0) return '1. ';
+
+    let text = '';
+    for (let i = 0; i < moveHistory.length; i += 2) {
+      const moveNum = Math.floor(i / 2) + 1;
+      const wMove = moveHistory[i] ? moveHistory[i].san : '';
+      const bMove = moveHistory[i + 1] ? moveHistory[i + 1].san : '';
+      text += `${moveNum}. ${wMove} ${bMove}\n`;
+    }
+    return text.trim();
+  };
+
   const checkKingSquare = chessGame.inCheck() ? getKingSquare(chessGame.turn()) : null;
 
   // --- Render Lobby ---
@@ -294,7 +315,7 @@ export default function MultiplayerChessApp() {
             <label style={{ fontSize: '12px', color: '#888', display: 'block', marginBottom: '5px' }}>Your Name:</label>
             <input
               type="text"
-              placeholder="e.g. Grandmaster Vimal"
+              placeholder="e.g. Player 1"
               value={playerName}
               onChange={(e) => setPlayerName(e.target.value)}
               style={{ ...styles.input, width: '100%', boxSizing: 'border-box' }}
@@ -329,12 +350,21 @@ export default function MultiplayerChessApp() {
   const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
   const ranks = ['8', '7', '6', '5', '4', '3', '2', '1'];
 
+  // Adjust display order if board is flipped (Black perspective)
+  const displayRanks = isFlipped ? [...ranks].reverse() : ranks;
+  const displayFiles = isFlipped ? [...files].reverse() : files;
+
   const boardSquares = [];
-  ranks.forEach((rank, rIdx) => {
-    files.forEach((file, fIdx) => {
+  displayRanks.forEach((rank, rIdx) => {
+    displayFiles.forEach((file, fIdx) => {
       const squareName = `${file}${rank}`;
       const piece = chessGame.get(squareName);
-      const isDark = (rIdx + fIdx) % 2 === 1;
+
+      // Determine square color based on original rank/file index
+      const actualFileIdx = files.indexOf(file);
+      const actualRankIdx = ranks.indexOf(rank);
+      const isDark = (actualRankIdx + actualFileIdx) % 2 === 1;
+
       const isSelected = selectedSquare === squareName;
       const isLegalTarget = legalMoves.includes(squareName);
       const isCaptureTarget = isLegalTarget && piece !== null;
@@ -431,6 +461,13 @@ export default function MultiplayerChessApp() {
 
         <div style={styles.controls}>
           <button
+            style={{ ...styles.button, backgroundColor: '#d97706' }}
+            onClick={() => setIsFlipped(!isFlipped)}
+          >
+            🔄 Flip Board ({isFlipped ? 'Black' : 'White'})
+          </button>
+
+          <button
             style={{ ...styles.button, backgroundColor: '#5c32a8' }}
             onClick={() => setInputMode(inputMode === 'click' ? 'drag' : 'click')}
           >
@@ -453,19 +490,22 @@ export default function MultiplayerChessApp() {
       </div>
 
       <div style={styles.sideContainer}>
-        <h2 style={styles.sectionHeader}>Live Move Notation</h2>
+        <h2 style={styles.sectionHeader}>Full Move History</h2>
         <div style={styles.outputBox}>
-          {moveHistory.length === 0 ? '1. ' : ''}
-          {moveHistory.reduce((acc, move, idx) => {
-            if (idx % 2 === 0) {
-              return `${acc}\n${Math.floor(idx / 2) + 1}. ${move.san} `;
-            }
-            return `${acc}${move.san} `;
-          }, '').trim()}
+          {formatFullNotation()}
         </div>
 
         <div style={styles.buttonGroup}>
-          <button style={{ ...styles.button, backgroundColor: '#2e7d32' }} onClick={() => navigator.clipboard.writeText(chessGame.pgn())}>
+          <button style={{ ...styles.button, backgroundColor: '#2e7d32' }} onClick={() => {
+            navigator.clipboard.writeText(formatFullNotation());
+            showToast('📋 Notation copied!');
+          }}>
+            📋 Copy Notation
+          </button>
+          <button style={{ ...styles.button, backgroundColor: '#2b5c8f' }} onClick={() => {
+            navigator.clipboard.writeText(chessGame.pgn());
+            showToast('📋 PGN copied!');
+          }}>
             📋 Copy PGN
           </button>
         </div>
@@ -498,6 +538,6 @@ const styles = {
   status: { fontSize: '14px', padding: '8px 12px', backgroundColor: '#1a1a1a', borderRadius: '4px', textAlign: 'center', width: '100%', boxSizing: 'border-box', fontWeight: 'bold' },
   sideContainer: { flex: '1 1 280px', display: 'flex', flexDirection: 'column', gap: '15px', width: '100%' },
   sectionHeader: { fontSize: 'clamp(16px, 3.5vw, 20px)', margin: '0' },
-  outputBox: { backgroundColor: '#1e1e1e', border: '1px solid #333', borderRadius: '6px', padding: '12px', minHeight: '160px', maxHeight: '220px', overflowY: 'auto', fontFamily: 'monospace', fontSize: '14px', whiteSpace: 'pre-wrap' },
+  outputBox: { backgroundColor: '#1e1e1e', border: '1px solid #333', borderRadius: '6px', padding: '12px', minHeight: '180px', maxHeight: '250px', overflowY: 'auto', fontFamily: 'monospace', fontSize: '14px', whiteSpace: 'pre-wrap' },
   buttonGroup: { display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }
 };
