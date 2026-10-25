@@ -40,7 +40,12 @@ export default function MultiplayerChessApp() {
   const [inputMode, setInputMode] = useState('click');
   const [showHints, setShowHints] = useState(true);
   const [showCheckHighlight, setShowCheckHighlight] = useState(true);
+  const [showLastMove, setShowLastMove] = useState(true);
   const [isGameOver, setIsGameOver] = useState(false);
+  const [isReviewing, setIsReviewing] = useState(false);
+  const [reviewIndex, setReviewIndex] = useState(-1);
+  const [pendingPromotion, setPendingPromotion] = useState(null); // { from, to }
+  const [drawOffered, setDrawOffered] = useState(false);
   const [, setRefreshKey] = useState(0);
 
   // Auto-fill room code from URL query parameter (e.g., ?room=ABC123)
@@ -80,6 +85,8 @@ export default function MultiplayerChessApp() {
       }
 
       setInLobby(false);
+      setIsReviewing(false);
+      setReviewIndex(-1);
       setRefreshKey(prev => prev + 1);
 
       if (players && players.length < 2) {
@@ -93,6 +100,8 @@ export default function MultiplayerChessApp() {
     socket.on('opponent-moved', ({ pgn, history }) => {
       if (pgn) chessGame.loadPgn(pgn);
       setMoveHistory(history || []);
+      setIsReviewing(false);
+      setReviewIndex(-1);
       setRefreshKey(prev => prev + 1);
       checkGameStatus();
     });
@@ -110,10 +119,28 @@ export default function MultiplayerChessApp() {
       setSelectedSquare(null);
       setLegalMoves([]);
       setIsGameOver(false);
+      setIsReviewing(false);
+      setReviewIndex(-1);
       setMoveHistory([]);
       setChatMessages([]);
+      setDrawOffered(false);
       setRefreshKey(prev => prev + 1);
       setStatusText("Game reset. White's turn.");
+    });
+
+    socket.on('resign', ({ player }) => {
+      setIsGameOver(true);
+      setStatusText(`🏳️ ${player} resigned. Game Over!`);
+    });
+
+    socket.on('offer-draw', ({ player }) => {
+      setDrawOffered(true);
+      showToast(`🤝 ${player} offered a draw!`);
+    });
+
+    socket.on('draw-accepted', () => {
+      setIsGameOver(true);
+      setStatusText(`🤝 Draw agreed by mutual consent.`);
     });
 
     socket.on('room-full', () => {
@@ -127,12 +154,15 @@ export default function MultiplayerChessApp() {
       socket.off('opponent-moved');
       socket.off('chat-message');
       socket.off('game-reset');
+      socket.off('resign');
+      socket.off('offer-draw');
+      socket.off('draw-accepted');
     };
   }, []);
 
   const showToast = (msg) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(''), 2000);
+    setTimeout(() => setToastMessage(''), 2500);
   };
 
   const getKingSquare = (color) => {
@@ -175,7 +205,6 @@ export default function MultiplayerChessApp() {
       for (let i = 0; i < blackLost; i++) capturedByWhite.push(pieceSymbols['b'][type]);
     });
 
-    // Calculate material difference
     let whiteScore = 0;
     let blackScore = 0;
     Object.keys(currentCounts.w).forEach(type => {
@@ -214,8 +243,8 @@ export default function MultiplayerChessApp() {
     setStatusText(status);
   };
 
-  const executeMove = (from, to) => {
-    if (isGameOver) return false;
+  const executeMove = (from, to, promotionPiece = 'q') => {
+    if (isGameOver || isReviewing) return false;
 
     if (playersList.length < 2) {
       showToast("Waiting for an opponent to join before making moves!");
@@ -227,13 +256,23 @@ export default function MultiplayerChessApp() {
       return false;
     }
 
+    // Check for promotion requirement
+    const piece = chessGame.get(from);
+    if (piece && piece.type === 'p' && ((piece.color === 'w' && to[1] === '8') || (piece.color === 'b' && to[1] === '1'))) {
+      if (!pendingPromotion) {
+        setPendingPromotion({ from, to });
+        return false;
+      }
+    }
+
     try {
-      const move = chessGame.move({ from, to, promotion: 'q' });
+      const move = chessGame.move({ from, to, promotion: promotionPiece });
       if (move) {
         setSelectedSquare(null);
         setLegalMoves([]);
+        setPendingPromotion(null);
 
-        const currentPgn = chessGame.pgn(); // Capture full PGN string
+        const currentPgn = chessGame.pgn();
         const fullHistory = chessGame.history({ verbose: true });
 
         setMoveHistory(fullHistory);
@@ -254,8 +293,13 @@ export default function MultiplayerChessApp() {
     return false;
   };
 
+  const handlePromotionSelect = (promoPiece) => {
+    if (!pendingPromotion) return;
+    executeMove(pendingPromotion.from, pendingPromotion.to, promoPiece);
+  };
+
   const handleSquareClick = (squareCoord) => {
-    if (inputMode !== 'click' || isGameOver) return;
+    if (inputMode !== 'click' || isGameOver || isReviewing) return;
 
     if (!selectedSquare) {
       const piece = chessGame.get(squareCoord);
@@ -275,8 +319,20 @@ export default function MultiplayerChessApp() {
       return;
     }
 
+    // Check pawn promotion before executing standard move
+    const piece = chessGame.get(selectedSquare);
+    const isPromo = piece && piece.type === 'p' && ((piece.color === 'w' && squareCoord[1] === '8') || (piece.color === 'b' && squareCoord[1] === '1'));
+    if (isPromo) {
+      const moves = chessGame.moves({ square: selectedSquare, verbose: true });
+      const isValid = moves.some(m => m.to === squareCoord);
+      if (isValid) {
+        setPendingPromotion({ from: selectedSquare, to: squareCoord });
+        return;
+      }
+    }
+
     const success = executeMove(selectedSquare, squareCoord);
-    if (!success) {
+    if (!success && !pendingPromotion) {
       const piece = chessGame.get(squareCoord);
       if (piece && piece.color === chessGame.turn()) {
         setSelectedSquare(squareCoord);
@@ -294,7 +350,7 @@ export default function MultiplayerChessApp() {
   };
 
   const handleDragStart = (e, squareCoord) => {
-    if (isGameOver || inputMode !== 'drag') {
+    if (isGameOver || isReviewing || inputMode !== 'drag') {
       e.preventDefault();
       return;
     }
@@ -312,18 +368,48 @@ export default function MultiplayerChessApp() {
   };
 
   const handleDragOver = (e) => {
-    if (inputMode === 'drag' && !isGameOver) {
+    if (inputMode === 'drag' && !isGameOver && !isReviewing) {
       e.preventDefault();
     }
   };
 
   const handleDrop = (e, targetSquare) => {
-    if (inputMode !== 'drag' || isGameOver) return;
+    if (inputMode !== 'drag' || isGameOver || isReviewing) return;
     e.preventDefault();
     const sourceSquare = e.dataTransfer.getData('text/plain');
     if (sourceSquare && targetSquare) {
+      const piece = chessGame.get(sourceSquare);
+      const isPromo = piece && piece.type === 'p' && ((piece.color === 'w' && targetSquare[1] === '8') || (piece.color === 'b' && targetSquare[1] === '1'));
+      if (isPromo) {
+        setPendingPromotion({ from: sourceSquare, to: targetSquare });
+        return;
+      }
       executeMove(sourceSquare, targetSquare);
     }
+  };
+
+  const handleResign = () => {
+    if (window.confirm('Are you sure you want to resign?')) {
+      const me = playersList.find(p => p.id === socket.id);
+      const playerNameFormatted = me ? me.name : 'Player';
+      socket.emit('resign', { roomCode, player: playerNameFormatted });
+      setIsGameOver(true);
+      setStatusText(`🏳️ You resigned. Game Over!`);
+    }
+  };
+
+  const handleOfferDraw = () => {
+    const me = playersList.find(p => p.id === socket.id);
+    const playerNameFormatted = me ? me.name : 'Player';
+    socket.emit('offer-draw', { roomCode, player: playerNameFormatted });
+    showToast('🤝 Draw offered to opponent.');
+  };
+
+  const handleAcceptDraw = () => {
+    socket.emit('accept-draw', { roomCode });
+    setIsGameOver(true);
+    setStatusText(`🤝 Draw agreed by mutual consent.`);
+    setDrawOffered(false);
   };
 
   const handleReset = () => {
@@ -332,12 +418,44 @@ export default function MultiplayerChessApp() {
       setSelectedSquare(null);
       setLegalMoves([]);
       setIsGameOver(false);
+      setIsReviewing(false);
+      setReviewIndex(-1);
       setMoveHistory([]);
       setChatMessages([]);
+      setDrawOffered(false);
       setRefreshKey(prev => prev + 1);
       setStatusText("White's turn to move.");
       socket.emit('reset-game', { roomCode });
     }
+  };
+
+  const startReview = () => {
+    setIsReviewing(true);
+    setReviewIndex(moveHistory.length - 1);
+    updateReviewBoard(moveHistory.length - 1);
+  };
+
+  const updateReviewBoard = (idx) => {
+    chessGame.reset();
+    for (let i = 0; i <= idx; i++) {
+      if (moveHistory[i]) {
+        chessGame.move(moveHistory[i]);
+      }
+    }
+    setRefreshKey(prev => prev + 1);
+  };
+
+  const goToReviewStep = (idx) => {
+    setReviewIndex(idx);
+    updateReviewBoard(idx);
+  };
+
+  const exitReview = () => {
+    setIsReviewing(false);
+    // Reload full current state
+    chessGame.reset();
+    moveHistory.forEach(m => chessGame.move(m));
+    setRefreshKey(prev => prev + 1);
   };
 
   const copyInviteLink = () => {
@@ -371,7 +489,6 @@ export default function MultiplayerChessApp() {
     setChatInput('');
   };
 
-  // Helper to format full move history
   const formatFullNotation = () => {
     if (!moveHistory || moveHistory.length === 0) return '1. ';
 
@@ -387,6 +504,7 @@ export default function MultiplayerChessApp() {
 
   const checkKingSquare = chessGame.inCheck() ? getKingSquare(chessGame.turn()) : null;
   const capturedInfo = getCapturedPieces();
+  const lastMove = moveHistory.length > 0 ? moveHistory[moveHistory.length - 1] : null;
 
   // --- Render Lobby ---
   if (inLobby) {
@@ -435,7 +553,6 @@ export default function MultiplayerChessApp() {
   const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
   const ranks = ['8', '7', '6', '5', '4', '3', '2', '1'];
 
-  // Adjust display order if board is flipped (Black perspective)
   const displayRanks = isFlipped ? [...ranks].reverse() : ranks;
   const displayFiles = isFlipped ? [...files].reverse() : files;
 
@@ -445,7 +562,6 @@ export default function MultiplayerChessApp() {
       const squareName = `${file}${rank}`;
       const piece = chessGame.get(squareName);
 
-      // Determine square color based on original rank/file index
       const actualFileIdx = files.indexOf(file);
       const actualRankIdx = ranks.indexOf(rank);
       const isDark = (actualRankIdx + actualFileIdx) % 2 === 1;
@@ -454,8 +570,10 @@ export default function MultiplayerChessApp() {
       const isLegalTarget = legalMoves.includes(squareName);
       const isCaptureTarget = isLegalTarget && piece !== null;
       const isInCheckSquare = showCheckHighlight && checkKingSquare === squareName;
+      const isLastMoveSquare = showLastMove && lastMove && (lastMove.from === squareName || lastMove.to === squareName) && !isReviewing;
 
       let bg = isDark ? '#b58863' : '#f0d9b5';
+      if (isLastMoveSquare) bg = isDark ? '#b9ca41' : '#cdd26a';
       if (isSelected) bg = 'rgba(255, 255, 0, 0.65)';
       if (isInCheckSquare) bg = 'rgba(255, 0, 0, 0.75)';
 
@@ -474,7 +592,7 @@ export default function MultiplayerChessApp() {
           {fIdx === 0 && <span style={styles.rankLabel}>{rank}</span>}
           {rIdx === 7 && <span style={styles.fileLabel}>{file}</span>}
 
-          {isLegalTarget && showHints && !isGameOver && (
+          {isLegalTarget && showHints && !isGameOver && !isReviewing && (
             <div
               style={{
                 ...styles.hintDot,
@@ -485,11 +603,11 @@ export default function MultiplayerChessApp() {
 
           {piece && (
             <div
-              draggable={!isGameOver && inputMode === 'drag' && piece.color === chessGame.turn()}
+              draggable={!isGameOver && !isReviewing && inputMode === 'drag' && piece.color === chessGame.turn()}
               onDragStart={(e) => handleDragStart(e, squareName)}
               style={{
                 ...styles.pieceWrapper,
-                cursor: !isGameOver && inputMode === 'drag' && piece.color === chessGame.turn() ? 'grab' : 'pointer',
+                cursor: !isGameOver && !isReviewing && inputMode === 'drag' && piece.color === chessGame.turn() ? 'grab' : 'pointer',
               }}
             >
               <span
@@ -528,6 +646,16 @@ export default function MultiplayerChessApp() {
 
         {toastMessage && <div style={styles.toastBanner}>{toastMessage}</div>}
 
+        {drawOffered && !isGameOver && (
+          <div style={styles.drawBanner}>
+            <span>🤝 Opponent offered a draw!</span>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button style={{ ...styles.button, backgroundColor: '#2e7d32', padding: '4px 8px' }} onClick={handleAcceptDraw}>Accept</button>
+              <button style={{ ...styles.button, backgroundColor: '#a83232', padding: '4px 8px' }} onClick={() => setDrawOffered(false)}>Decline</button>
+            </div>
+          </div>
+        )}
+
         {/* Captured by Black / Top info */}
         <div style={styles.capturedBar}>
           <span>Black Captured: {capturedInfo.capturedByBlack.join(' ')}</span>
@@ -537,14 +665,39 @@ export default function MultiplayerChessApp() {
         <div style={styles.boardWrapper}>
           <div style={styles.boardGrid}>{boardSquares}</div>
 
-          {isGameOver && (
+          {/* Promotion Modal */}
+          {pendingPromotion && (
+            <div style={styles.gameOverOverlay}>
+              <div style={styles.gameOverModal}>
+                <h3 style={{ margin: '0 0 10px 0', color: '#ffcc00' }}>Choose Promotion Piece</h3>
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                  {['q', 'r', 'b', 'n'].map(type => (
+                    <button
+                      key={type}
+                      onClick={() => handlePromotionSelect(type)}
+                      style={{ fontSize: '30px', padding: '10px', backgroundColor: '#333', border: '1px solid #555', borderRadius: '6px', cursor: 'pointer', color: '#fff' }}
+                    >
+                      {pieceSymbols[chessGame.turn()][type]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {isGameOver && !isReviewing && (
             <div style={styles.gameOverOverlay}>
               <div style={styles.gameOverModal}>
                 <h2 style={{ margin: '0 0 10px 0', color: '#ffcc00' }}>Game Over</h2>
                 <p style={{ margin: '0 0 15px 0', fontSize: '15px' }}>{statusText}</p>
-                <button style={styles.newGameButton} onClick={handleReset}>
-                  🎮 Play Again
-                </button>
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <button style={styles.newGameButton} onClick={startReview}>
+                    🔍 Review Game
+                  </button>
+                  <button style={{ ...styles.newGameButton, backgroundColor: '#2b5c8f' }} onClick={handleReset}>
+                    🎮 Play Again
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -561,7 +714,7 @@ export default function MultiplayerChessApp() {
             style={{ ...styles.button, backgroundColor: '#d97706' }}
             onClick={() => setIsFlipped(!isFlipped)}
           >
-            🔄 Flip Board ({isFlipped ? 'Black' : 'White'})
+            🔄 Flip ({isFlipped ? 'Black' : 'White'})
           </button>
 
           <button
@@ -572,25 +725,91 @@ export default function MultiplayerChessApp() {
           </button>
 
           <button
-            style={{ ...styles.button, backgroundColor: showHints ? '#2e7d32' : '#555' }}
-            onClick={() => setShowHints(!showHints)}
+            style={{ ...styles.button, backgroundColor: showLastMove ? '#2e7d32' : '#555' }}
+            onClick={() => setShowLastMove(!showLastMove)}
           >
-            Hints: {showHints ? 'ON' : 'OFF'}
+            Last Move: {showLastMove ? 'ON' : 'OFF'}
           </button>
 
-          <button style={{ ...styles.button, backgroundColor: '#a83232' }} onClick={handleReset}>
-            ⚠️ Reset
-          </button>
+          {!isGameOver && (
+            <>
+              <button style={{ ...styles.button, backgroundColor: '#9a3412' }} onClick={handleOfferDraw}>
+                🤝 Draw
+              </button>
+              <button style={{ ...styles.button, backgroundColor: '#a83232' }} onClick={handleResign}>
+                🏳️ Resign
+              </button>
+            </>
+          )}
+
+          {isGameOver && !isReviewing && (
+            <button style={{ ...styles.button, backgroundColor: '#2e7d32' }} onClick={startReview}>
+              🔍 Review
+            </button>
+          )}
+
+          {isReviewing && (
+            <button style={{ ...styles.button, backgroundColor: '#2e7d32' }} onClick={exitReview}>
+              ❌ Exit Review
+            </button>
+          )}
         </div>
 
-        <div style={{ ...styles.status, color: isGameOver ? '#ffcc00' : '#aaa' }}>{statusText}</div>
+        <div style={{ ...styles.status, color: isGameOver ? '#ffcc00' : '#aaa' }}>
+          {isReviewing ? `🔍 Reviewing move ${reviewIndex + 1} of ${moveHistory.length}` : statusText}
+        </div>
       </div>
 
       <div style={styles.sideContainer}>
         <h2 style={styles.sectionHeader}>Full Move History</h2>
         <div style={styles.outputBox}>
-          {formatFullNotation()}
+          {moveHistory.length === 0 ? (
+            <div style={{ color: '#666', fontStyle: 'italic', fontSize: '13px' }}>No moves yet...</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {Array.from({ length: Math.ceil(moveHistory.length / 2) }).map((_, rIdx) => {
+                const wMove = moveHistory[rIdx * 2];
+                const bMove = moveHistory[rIdx * 2 + 1];
+                return (
+                  <div key={rIdx} style={{ display: 'flex', fontSize: '13px', fontFamily: 'monospace' }}>
+                    <span style={{ width: '35px', color: '#888' }}>{rIdx + 1}.</span>
+                    <span
+                      onClick={() => isReviewing && goToReviewStep(rIdx * 2)}
+                      style={{
+                        width: '70px',
+                        cursor: isReviewing ? 'pointer' : 'default',
+                        backgroundColor: reviewIndex === rIdx * 2 ? '#2e7d32' : 'transparent',
+                        padding: '1px 4px',
+                        borderRadius: '3px'
+                      }}
+                    >
+                      {wMove ? wMove.san : ''}
+                    </span>
+                    <span
+                      onClick={() => bMove && isReviewing && goToReviewStep(rIdx * 2 + 1)}
+                      style={{
+                        width: '70px',
+                        cursor: bMove && isReviewing ? 'pointer' : 'default',
+                        backgroundColor: reviewIndex === rIdx * 2 + 1 ? '#2e7d32' : 'transparent',
+                        padding: '1px 4px',
+                        borderRadius: '3px'
+                      }}
+                    >
+                      {bMove ? bMove.san : ''}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
+
+        {isReviewing && (
+          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+            <button style={{ ...styles.button, flex: 1 }} onClick={() => reviewIndex > -1 && goToReviewStep(reviewIndex - 1)}>◀ Prev</button>
+            <button style={{ ...styles.button, flex: 1 }} onClick={() => reviewIndex < moveHistory.length - 1 && goToReviewStep(reviewIndex + 1)}>Next ▶</button>
+          </div>
+        )}
 
         <div style={styles.buttonGroup}>
           <button style={{ ...styles.button, backgroundColor: '#2e7d32' }} onClick={() => {
@@ -646,6 +865,7 @@ const styles = {
   boardContainer: { flex: '1 1 340px', maxWidth: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' },
   roomHeader: { display: 'flex', justifyContent: 'space-between', width: '100%', maxWidth: '420px', marginBottom: '8px', alignItems: 'center', backgroundColor: '#1a1a1a', padding: '8px 12px', borderRadius: '6px', boxSizing: 'border-box' },
   toastBanner: { width: '100%', maxWidth: '420px', backgroundColor: '#d32f2f', color: '#fff', padding: '6px', borderRadius: '4px', fontSize: '13px', textAlign: 'center', marginBottom: '8px' },
+  drawBanner: { width: '100%', maxWidth: '420px', backgroundColor: '#9a3412', color: '#fff', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', boxSizing: 'border-box' },
   capturedBar: { width: '100%', maxWidth: '420px', display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#bbb', backgroundColor: '#1a1a1a', padding: '4px 8px', borderRadius: '4px', marginBottom: '6px', boxSizing: 'border-box' },
   boardWrapper: { width: '100%', maxWidth: '420px', aspectRatio: '1 / 1', margin: '0 auto 6px auto', position: 'relative' },
   boardGrid: { display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gridTemplateRows: 'repeat(8, 1fr)', width: '100%', height: '100%', border: '3px solid #333', borderRadius: '4px', boxSizing: 'border-box' },
