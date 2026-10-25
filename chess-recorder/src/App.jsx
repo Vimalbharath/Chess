@@ -38,38 +38,28 @@ export default function MultiplayerChessApp() {
   const [, setRefreshKey] = useState(0);
 
   // Auto-fill room code from URL query parameter (e.g., ?room=ABC123)
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const roomParam = params.get('room');
-    if (roomParam) {
-      setRoomInput(roomParam.toUpperCase());
-    }
-  }, []);
+  // Replace your useEffect socket listeners in src/App.jsx with this:
 
-  // --- Socket.io Listeners ---
   useEffect(() => {
-    socket.on('room-joined', ({ room, color, players }) => {
-      setRoomCode(room);
-      setPlayerColor(color);
-      setInLobby(false);
+    socket.on('room-update', ({ room, players }) => {
+      if (room) setRoomCode(room);
+      setPlayersList(players || []);
 
-      // Auto-flip board if playing as Black
-      if (color === 'b') {
-        setIsFlipped(true);
+      // Find my assigned color from the players list
+      const me = players?.find(p => p.id === socket.id);
+      if (me) {
+        setPlayerColor(me.color);
+        if (me.color === 'b') setIsFlipped(true);
       }
 
-      if (players.length < 2) {
-        setStatusText(`Waiting for opponent to join room: ${room}...`);
-      } else {
-        const opponent = players.find(p => p.color !== color);
-        setStatusText(`Game on! Playing against ${opponent ? opponent.name : 'Opponent'}. White's turn.`);
+      if (players && players.length < 2) {
+        setInLobby(false);
+        setStatusText(`Waiting for opponent to join room: ${room || roomCode}...`);
+      } else if (players && players.length >= 2) {
+        setInLobby(false);
+        const moveColor = chessGame.turn() === 'w' ? "White's" : "Black's";
+        setStatusText(`Game on! 2 players connected. ${moveColor} turn.`);
       }
-    });
-
-    socket.on('player-joined', ({ players }) => {
-      setPlayersList(players);
-      const opponent = players.find(p => p.color !== playerColor);
-      setStatusText(`Opponent ${opponent?.name || ''} joined! White's turn.`);
     });
 
     socket.on('player-disconnected', () => {
@@ -98,14 +88,13 @@ export default function MultiplayerChessApp() {
     });
 
     return () => {
-      socket.off('room-joined');
-      socket.off('player-joined');
+      socket.off('room-update');
       socket.off('player-disconnected');
       socket.off('room-full');
       socket.off('opponent-moved');
       socket.off('game-reset');
     };
-  }, [playerColor]);
+  }, []);
 
   const showToast = (msg) => {
     setToastMessage(msg);

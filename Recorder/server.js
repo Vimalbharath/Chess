@@ -31,27 +31,26 @@ io.on('connection', (socket) => {
 
     const room = rooms[roomCode];
 
-    // Prevent more than 2 players per room
-    if (room.players.length >= 2) {
-      socket.emit('room-full');
-      return;
-    }
+    // Check if player is already in this room
+    const existingPlayer = room.players.find(p => p.id === socket.id);
+    if (!existingPlayer) {
+      if (room.players.length >= 2) {
+        socket.emit('room-full');
+        return;
+      }
 
-    // Assign color: First player is White ('w'), second is Black ('b')
-    const color = room.players.length === 0 ? 'w' : 'b';
-    room.players.push({ 
-      id: socket.id, 
-      name: playerName || `Player ${color === 'w' ? '1' : '2'}`, 
-      color 
-    });
+      const color = room.players.length === 0 ? 'w' : 'b';
+      room.players.push({ 
+        id: socket.id, 
+        name: playerName || `Player ${color === 'w' ? '1' : '2'}`, 
+        color 
+      });
+    }
 
     socket.join(roomCode);
 
-    // Notify user of successful join
-    socket.emit('room-joined', { room: roomCode, color, players: room.players });
-
-    // Notify opponent that someone joined
-    socket.to(roomCode).emit('player-joined', { players: room.players });
+    // Send room state to everyone in the room
+    io.to(roomCode).emit('room-update', { room: roomCode, players: room.players });
   });
 
   socket.on('make-move', ({ roomCode, fen, history }) => {
@@ -59,14 +58,14 @@ io.on('connection', (socket) => {
   });
 
   socket.on('reset-game', ({ roomCode }) => {
-    socket.to(roomCode).emit('game-reset');
+    io.to(roomCode).emit('game-reset');
   });
 
   socket.on('disconnect', () => {
     console.log(`Player disconnected: ${socket.id}`);
     for (const roomCode in rooms) {
       rooms[roomCode].players = rooms[roomCode].players.filter(p => p.id !== socket.id);
-      socket.to(roomCode).emit('player-disconnected');
+      io.to(roomCode).emit('room-update', { players: rooms[roomCode].players });
       if (rooms[roomCode].players.length === 0) {
         delete rooms[roomCode];
       }
@@ -74,9 +73,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// Use cloud-provided port or default to 3001 locally
 const PORT = process.env.PORT || 3001;
-
 server.listen(PORT, () => {
-  console.log(`Chess multiplayer server running successfully on port ${PORT}`);
+  console.log(`Chess multiplayer server running on port ${PORT}`);
 });
