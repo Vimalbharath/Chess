@@ -1055,3 +1055,4 @@ const styles = {
   chatBox: { backgroundColor: '#1e1e1e', border: '1px solid #333', borderRadius: '6px', padding: '12px', height: '130px', overflowY: 'auto', fontFamily: 'sans-serif' },
   buttonGroup: { display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }
 };
+>>>>>>
