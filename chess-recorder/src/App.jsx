@@ -21,16 +21,32 @@ export default function MultiplayerChessApp() {
   const [playerName, setPlayerName] = useState('');
   const [roomInput, setRoomInput] = useState('');
   const [roomCode, setRoomCode] = useState('');
-  const [playerColor, setPlayerColor] = useState(null); // 'w' or 'b'
+  const [playerColor, setPlayerColor] = useState(null);
   const [playersList, setPlayersList] = useState([]);
   const [toastMessage, setToastMessage] = useState('');
+
+  // Timer Configuration (Lobby)
+  const [timerType, setTimerType] = useState('timed'); // 'timed' or 'untimed'
+  const [selectedMinutes, setSelectedMinutes] = useState(10);
+  const [selectedIncrement, setSelectedIncrement] = useState(0);
+
+  // Clocks State
+  const [timeControl, setTimeControl] = useState({ type: 'untimed' });
+  const [whiteTime, setWhiteTime] = useState(null);
+  const [blackTime, setBlackTime] = useState(null);
+
+  // Gameplay Settings
+  const [maxIllegalMoves, setMaxIllegalMoves] = useState(3);
+  const [illegalCount, setIllegalCount] = useState(0);
+  const [alertOnCheck, setAlertOnCheck] = useState(true);
+  const [showNextValidMove, setShowNextValidMove] = useState(false);
 
   // Chat State
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
 
   // Board Sizing & Orientation
-  const [isFlipped, setIsFlipped] = useState(false); // Board orientation: false = White on bottom, true = Black on bottom
+  const [isFlipped, setIsFlipped] = useState(false);
 
   // Board & Game State
   const [moveHistory, setMoveHistory] = useState([]);
@@ -44,11 +60,11 @@ export default function MultiplayerChessApp() {
   const [isGameOver, setIsGameOver] = useState(false);
   const [isReviewing, setIsReviewing] = useState(false);
   const [reviewIndex, setReviewIndex] = useState(-1);
-  const [pendingPromotion, setPendingPromotion] = useState(null); // { from, to }
+  const [pendingPromotion, setPendingPromotion] = useState(null);
   const [drawOffered, setDrawOffered] = useState(false);
   const [, setRefreshKey] = useState(0);
 
-  // Auto-fill room code from URL query parameter (e.g., ?room=ABC123)
+  // Auto-fill room code from URL query parameter
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const roomParam = params.get('room');
@@ -57,9 +73,50 @@ export default function MultiplayerChessApp() {
     }
   }, []);
 
+  // --- Clock Interval Timer ---
+  useEffect(() => {
+    if (inLobby || isGameOver || isReviewing || timeControl.type !== 'timed') return;
+    if (playersList.length < 2) return;
+
+    const interval = setInterval(() => {
+      const turn = chessGame.turn();
+      if (turn === 'w') {
+        setWhiteTime(prev => {
+          if (prev === null) return null;
+          if (prev <= 1) {
+            clearInterval(interval);
+            handleTimeExpiration('w');
+            return 0;
+          }
+          return prev - 1;
+        });
+      } else {
+        setBlackTime(prev => {
+          if (prev === null) return null;
+          if (prev <= 1) {
+            clearInterval(interval);
+            handleTimeExpiration('b');
+            return 0;
+          }
+          return prev - 1;
+        });
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [inLobby, isGameOver, isReviewing, timeControl, chessGame, playersList]);
+
+  const handleTimeExpiration = (color) => {
+    const loser = color === 'w' ? 'White' : 'Black';
+    const winner = color === 'w' ? 'Black' : 'White';
+    setIsGameOver(true);
+    setStatusText(`⏰ Time out! ${winner} wins on time.`);
+    socket.emit('time-expired', { roomCode, color });
+  };
+
   // --- Socket.io Handlers ---
   useEffect(() => {
-    socket.on('room-update', ({ room, players, pgn, history, chat }) => {
+    socket.on('room-update', ({ room, players, pgn, history, chat, timeControl: tc, whiteTime: wt, blackTime: bt }) => {
       if (room) setRoomCode(room);
       setPlayersList(players || []);
 
@@ -69,7 +126,10 @@ export default function MultiplayerChessApp() {
         if (me.color === 'b') setIsFlipped(true);
       }
 
-      // Restore full game history and board via PGN
+      if (tc) setTimeControl(tc);
+      if (wt !== undefined) setWhiteTime(wt);
+      if (bt !== undefined) setBlackTime(bt);
+
       if (pgn) {
         chessGame.loadPgn(pgn);
       } else {
@@ -97,13 +157,21 @@ export default function MultiplayerChessApp() {
       }
     });
 
-    socket.on('opponent-moved', ({ pgn, history }) => {
+    socket.on('opponent-moved', ({ pgn, history, whiteTime: wt, blackTime: bt }) => {
       if (pgn) chessGame.loadPgn(pgn);
       setMoveHistory(history || []);
+      if (wt !== undefined) setWhiteTime(wt);
+      if (bt !== undefined) setBlackTime(bt);
       setIsReviewing(false);
       setReviewIndex(-1);
       setRefreshKey(prev => prev + 1);
       checkGameStatus();
+    });
+
+    socket.on('time-expired', ({ color }) => {
+      const winner = color === 'w' ? 'Black' : 'White';
+      setIsGameOver(true);
+      setStatusText(`⏰ Time out! ${winner} wins on time.`);
     });
 
     socket.on('chat-message', (msg) => {
@@ -114,7 +182,7 @@ export default function MultiplayerChessApp() {
       showToast(`⚠️ ${disconnectedPlayer || 'Opponent'} disconnected! Game state is saved for reconnection.`);
     });
 
-    socket.on('game-reset', () => {
+    socket.on('game-reset', ({ whiteTime: wt, blackTime: bt }) => {
       chessGame.reset();
       setSelectedSquare(null);
       setLegalMoves([]);
@@ -124,6 +192,9 @@ export default function MultiplayerChessApp() {
       setMoveHistory([]);
       setChatMessages([]);
       setDrawOffered(false);
+      setIllegalCount(0);
+      if (wt !== undefined) setWhiteTime(wt);
+      if (bt !== undefined) setBlackTime(bt);
       setRefreshKey(prev => prev + 1);
       setStatusText("Game reset. White's turn.");
     });
@@ -152,6 +223,7 @@ export default function MultiplayerChessApp() {
       socket.off('player-disconnected');
       socket.off('room-full');
       socket.off('opponent-moved');
+      socket.off('time-expired');
       socket.off('chat-message');
       socket.off('game-reset');
       socket.off('resign');
@@ -239,7 +311,12 @@ export default function MultiplayerChessApp() {
     setIsGameOver(false);
     const moveColor = chessGame.turn() === 'w' ? 'White' : 'Black';
     let status = `${moveColor}'s turn to move.`;
-    if (chessGame.inCheck()) status += ` (${moveColor} is in CHECK!)`;
+    if (chessGame.inCheck()) {
+      status += ` (${moveColor} is in CHECK!)`;
+      if (alertOnCheck && playerColor && chessGame.turn() === playerColor) {
+        showToast(`🚨 ALERT: You are in CHECK!`);
+      }
+    }
     setStatusText(status);
   };
 
@@ -272,6 +349,22 @@ export default function MultiplayerChessApp() {
         setLegalMoves([]);
         setPendingPromotion(null);
 
+        // Update timers with increment if timed
+        let updatedWhiteTime = whiteTime;
+        let updatedBlackTime = blackTime;
+        if (timeControl.type === 'timed') {
+          const inc = timeControl.increment || 0;
+          if (chessGame.turn() === 'b') {
+            // White just moved
+            if (updatedWhiteTime !== null) updatedWhiteTime += inc;
+          } else {
+            // Black just moved
+            if (updatedBlackTime !== null) updatedBlackTime += inc;
+          }
+          setWhiteTime(updatedWhiteTime);
+          setBlackTime(updatedBlackTime);
+        }
+
         const currentPgn = chessGame.pgn();
         const fullHistory = chessGame.history({ verbose: true });
 
@@ -283,12 +376,23 @@ export default function MultiplayerChessApp() {
           roomCode,
           pgn: currentPgn,
           history: fullHistory,
-          move
+          move,
+          whiteTime: updatedWhiteTime,
+          blackTime: updatedBlackTime
         });
         return true;
       }
     } catch {
-      // Invalid move
+      // Invalid move handling
+      const nextIllegal = illegalCount + 1;
+      setIllegalCount(nextIllegal);
+      if (nextIllegal >= maxIllegalMoves) {
+        setIsGameOver(true);
+        const winner = chessGame.turn() === 'w' ? 'Black' : 'White';
+        setStatusText(`❌ Max illegal moves exceeded! ${winner} wins by default.`);
+      } else {
+        showToast(`⚠️ Illegal move! (${nextIllegal}/${maxIllegalMoves} allowed)`);
+      }
     }
     return false;
   };
@@ -319,7 +423,6 @@ export default function MultiplayerChessApp() {
       return;
     }
 
-    // Check pawn promotion before executing standard move
     const piece = chessGame.get(selectedSquare);
     const isPromo = piece && piece.type === 'p' && ((piece.color === 'w' && squareCoord[1] === '8') || (piece.color === 'b' && squareCoord[1] === '1'));
     if (isPromo) {
@@ -414,17 +517,6 @@ export default function MultiplayerChessApp() {
 
   const handleReset = () => {
     if (window.confirm('Reset board for both players?')) {
-      chessGame.reset();
-      setSelectedSquare(null);
-      setLegalMoves([]);
-      setIsGameOver(false);
-      setIsReviewing(false);
-      setReviewIndex(-1);
-      setMoveHistory([]);
-      setChatMessages([]);
-      setDrawOffered(false);
-      setRefreshKey(prev => prev + 1);
-      setStatusText("White's turn to move.");
       socket.emit('reset-game', { roomCode });
     }
   };
@@ -452,7 +544,6 @@ export default function MultiplayerChessApp() {
 
   const exitReview = () => {
     setIsReviewing(false);
-    // Reload full current state
     chessGame.reset();
     moveHistory.forEach(m => chessGame.move(m));
     setRefreshKey(prev => prev + 1);
@@ -468,7 +559,10 @@ export default function MultiplayerChessApp() {
   const createRoom = () => {
     const name = playerName.trim() || 'Player 1';
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-    socket.emit('join-room', { roomCode: code, playerName: name });
+    const tc = timerType === 'timed'
+      ? { type: 'timed', minutes: Number(selectedMinutes), increment: Number(selectedIncrement) }
+      : { type: 'untimed' };
+    socket.emit('join-room', { roomCode: code, playerName: name, timeControl: tc });
   };
 
   const joinRoom = (e) => {
@@ -502,11 +596,28 @@ export default function MultiplayerChessApp() {
     return text.trim();
   };
 
+  const formatTime = (seconds) => {
+    if (seconds === null || seconds === undefined) return '--:--';
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const getNextValidMoveHint = () => {
+    if (!showNextValidMove || isGameOver || isReviewing) return null;
+    if (playerColor && chessGame.turn() !== playerColor) return null;
+    const moves = chessGame.moves({ verbose: true });
+    if (moves.length === 0) return null;
+    const hint = moves[0];
+    return `${hint.from.toUpperCase()} ➔ ${hint.to.toUpperCase()} (${hint.san})`;
+  };
+
   const checkKingSquare = chessGame.inCheck() ? getKingSquare(chessGame.turn()) : null;
   const capturedInfo = getCapturedPieces();
   const lastMove = isReviewing && reviewIndex >= 0
     ? moveHistory[reviewIndex]
     : (moveHistory.length > 0 ? moveHistory[moveHistory.length - 1] : null);
+  const nextMoveHintText = getNextValidMoveHint();
 
   // --- Render Lobby ---
   if (inLobby) {
@@ -514,10 +625,10 @@ export default function MultiplayerChessApp() {
       <div style={styles.lobbyContainer}>
         <div style={styles.lobbyCard}>
           <h1 style={{ marginBottom: '8px', fontSize: '22px' }}>Multiplayer Chess</h1>
-          <p style={{ color: '#aaa', marginBottom: '20px', fontSize: '13px' }}>Set your name and create or join a room.</p>
+          <p style={{ color: '#aaa', marginBottom: '15px', fontSize: '13px' }}>Set your name, timer rules, and preferences.</p>
 
-          <div style={{ marginBottom: '15px', textAlign: 'left' }}>
-            <label style={{ fontSize: '12px', color: '#888', display: 'block', marginBottom: '5px' }}>Your Name:</label>
+          <div style={{ marginBottom: '12px', textAlign: 'left' }}>
+            <label style={{ fontSize: '12px', color: '#888', display: 'block', marginBottom: '4px' }}>Your Name:</label>
             <input
               type="text"
               placeholder="e.g. Player 1"
@@ -527,18 +638,60 @@ export default function MultiplayerChessApp() {
             />
           </div>
 
-          <button style={{ ...styles.button, width: '100%', padding: '12px', marginBottom: '20px', backgroundColor: '#2e7d32', fontSize: '15px' }} onClick={createRoom}>
+          <div style={{ marginBottom: '12px', textAlign: 'left', backgroundColor: '#161616', padding: '10px', borderRadius: '6px', border: '1px solid #333' }}>
+            <label style={{ fontSize: '12px', color: '#ffcc00', display: 'block', marginBottom: '6px', fontWeight: 'bold' }}>⏱️ Timer & Templates:</label>
+            <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', flexWrap: 'wrap' }}>
+              <button style={{ ...styles.templateBtn, backgroundColor: selectedMinutes === 3 && selectedIncrement === 5 ? '#2e7d32' : '#2b5c8f' }} onClick={() => { setTimerType('timed'); setSelectedMinutes(3); setSelectedIncrement(5); }}>3m + 5s</button>
+              <button style={{ ...styles.templateBtn, backgroundColor: selectedMinutes === 10 && selectedIncrement === 0 ? '#2e7d32' : '#2b5c8f' }} onClick={() => { setTimerType('timed'); setSelectedMinutes(10); setSelectedIncrement(0); }}>10m (Rapid)</button>
+              <button style={{ ...styles.templateBtn, backgroundColor: timerType === 'untimed' ? '#2e7d32' : '#333' }} onClick={() => setTimerType('untimed')}>No Timer</button>
+            </div>
+
+            {timerType === 'timed' && (
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: '11px', color: '#888', display: 'block' }}>Minutes:</label>
+                  <input type="number" min="1" max="60" value={selectedMinutes} onChange={(e) => setSelectedMinutes(Number(e.target.value))} style={{ ...styles.input, width: '100%', boxSizing: 'border-box', padding: '6px' }} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: '11px', color: '#888', display: 'block' }}>Inc (sec):</label>
+                  <input type="number" min="0" max="60" value={selectedIncrement} onChange={(e) => setSelectedIncrement(Number(e.target.value))} style={{ ...styles.input, width: '100%', boxSizing: 'border-box', padding: '6px' }} />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div style={{ marginBottom: '15px', textAlign: 'left', backgroundColor: '#161616', padding: '10px', borderRadius: '6px', border: '1px solid #333', fontSize: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', alignItems: 'center' }}>
+              <span>Max Illegal Moves:</span>
+              <select value={maxIllegalMoves} onChange={(e) => setMaxIllegalMoves(Number(e.target.value))} style={{ backgroundColor: '#121212', color: '#fff', border: '1px solid #444', padding: '4px', borderRadius: '4px' }}>
+                <option value={1}>1</option>
+                <option value={3}>3</option>
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+              </select>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', alignItems: 'center' }}>
+              <span>Alert on Check:</span>
+              <input type="checkbox" checked={alertOnCheck} onChange={(e) => setAlertOnCheck(e.target.checked)} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Show Next Valid Move:</span>
+              <input type="checkbox" checked={showNextValidMove} onChange={(e) => setShowNextValidMove(e.target.checked)} />
+            </div>
+          </div>
+
+          <button style={{ ...styles.button, width: '100%', padding: '12px', marginBottom: '15px', backgroundColor: '#2e7d32', fontSize: '15px' }} onClick={createRoom}>
             ➕ Create New Room
           </button>
 
-          <div style={{ borderTop: '1px solid #333', paddingTop: '15px', textAlign: 'left' }}>
+          <div style={{ borderTop: '1px solid #333', paddingTop: '12px', textAlign: 'left' }}>
             <label style={{ fontSize: '12px', color: '#888', display: 'block', marginBottom: '5px' }}>Or Join Existing Room:</label>
             <form onSubmit={joinRoom} style={{ display: 'flex', gap: '8px' }}>
               <input
                 type="text"
                 placeholder="Room Code"
                 value={roomInput}
-                onChange={(e) => setRoomInput(e.target.value)}
+                onChange={(e) => setRoomInput(e.target.value.toUpperCase())}
                 style={styles.input}
               />
               <button type="submit" style={{ ...styles.button, backgroundColor: '#2b5c8f' }}>
@@ -658,7 +811,18 @@ export default function MultiplayerChessApp() {
           </div>
         )}
 
-        {/* Captured by Black / Top info */}
+        {/* Timers & Captured Bar */}
+        {timeControl.type === 'timed' && (
+          <div style={styles.timerBar}>
+            <div style={{ ...styles.clockBox, borderColor: chessGame.turn() === 'w' && !isGameOver ? '#ffcc00' : '#444' }}>
+              ⚪ White Clock: <strong>{formatTime(whiteTime)}</strong>
+            </div>
+            <div style={{ ...styles.clockBox, borderColor: chessGame.turn() === 'b' && !isGameOver ? '#ffcc00' : '#444' }}>
+              ⚫ Black Clock: <strong>{formatTime(blackTime)}</strong>
+            </div>
+          </div>
+        )}
+
         <div style={styles.capturedBar}>
           <span>Black Captured: {capturedInfo.capturedByBlack.join(' ')}</span>
           <span style={{ color: '#ffcc00' }}>{capturedInfo.blackAdvantage}</span>
@@ -667,7 +831,6 @@ export default function MultiplayerChessApp() {
         <div style={styles.boardWrapper}>
           <div style={styles.boardGrid}>{boardSquares}</div>
 
-          {/* Promotion Modal */}
           {pendingPromotion && (
             <div style={styles.gameOverOverlay}>
               <div style={styles.gameOverModal}>
@@ -705,11 +868,16 @@ export default function MultiplayerChessApp() {
           )}
         </div>
 
-        {/* Captured by White / Bottom info */}
         <div style={styles.capturedBar}>
           <span>White Captured: {capturedInfo.capturedByWhite.join(' ')}</span>
           <span style={{ color: '#ffcc00' }}>{capturedInfo.whiteAdvantage}</span>
         </div>
+
+        {showNextValidMove && nextMoveHintText && !isGameOver && !isReviewing && (
+          <div style={styles.hintBanner}>
+            💡 Suggested Valid Move: <strong>{nextMoveHintText}</strong>
+          </div>
+        )}
 
         <div style={styles.controls}>
           <button
@@ -862,12 +1030,16 @@ export default function MultiplayerChessApp() {
 const styles = {
   container: { display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '20px', maxWidth: '1000px', margin: '0 auto', padding: '12px', backgroundColor: '#121212', color: '#e0e0e0', fontFamily: 'sans-serif', borderRadius: '8px', boxSizing: 'border-box', width: '100%' },
   lobbyContainer: { display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#121212', fontFamily: 'sans-serif' },
-  lobbyCard: { backgroundColor: '#1e1e1e', padding: '30px', borderRadius: '8px', width: '340px', textAlign: 'center', border: '1px solid #333', color: '#fff' },
+  lobbyCard: { backgroundColor: '#1e1e1e', padding: '25px', borderRadius: '8px', width: '360px', textAlign: 'center', border: '1px solid #333', color: '#fff', boxSizing: 'border-box' },
   input: { flex: 1, padding: '10px', backgroundColor: '#121212', border: '1px solid #444', borderRadius: '6px', color: '#fff', fontSize: '14px' },
+  templateBtn: { flex: 1, padding: '6px 8px', borderRadius: '4px', border: 'none', color: '#fff', fontSize: '12px', cursor: 'pointer' },
   boardContainer: { flex: '1 1 340px', maxWidth: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' },
   roomHeader: { display: 'flex', justifyContent: 'space-between', width: '100%', maxWidth: '420px', marginBottom: '8px', alignItems: 'center', backgroundColor: '#1a1a1a', padding: '8px 12px', borderRadius: '6px', boxSizing: 'border-box' },
   toastBanner: { width: '100%', maxWidth: '420px', backgroundColor: '#d32f2f', color: '#fff', padding: '6px', borderRadius: '4px', fontSize: '13px', textAlign: 'center', marginBottom: '8px' },
   drawBanner: { width: '100%', maxWidth: '420px', backgroundColor: '#9a3412', color: '#fff', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', boxSizing: 'border-box' },
+  timerBar: { width: '100%', maxWidth: '420px', display: 'flex', justifyContent: 'space-between', marginBottom: '6px', gap: '8px' },
+  clockBox: { flex: 1, backgroundColor: '#1a1a1a', border: '2px solid #444', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', textAlign: 'center', color: '#fff', boxSizing: 'border-box' },
+  hintBanner: { width: '100%', maxWidth: '420px', backgroundColor: '#1e3a8a', color: '#fff', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', textAlign: 'center', marginBottom: '6px', boxSizing: 'border-box' },
   capturedBar: { width: '100%', maxWidth: '420px', display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#bbb', backgroundColor: '#1a1a1a', padding: '4px 8px', borderRadius: '4px', marginBottom: '6px', boxSizing: 'border-box' },
   boardWrapper: { width: '100%', maxWidth: '420px', aspectRatio: '1 / 1', margin: '0 auto 6px auto', position: 'relative' },
   boardGrid: { display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gridTemplateRows: 'repeat(8, 1fr)', width: '100%', height: '100%', border: '3px solid #333', borderRadius: '4px', boxSizing: 'border-box' },
@@ -877,7 +1049,7 @@ const styles = {
   square: { width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', userSelect: 'none' },
   pieceWrapper: { width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 },
   piece: { fontSize: 'clamp(24px, 7vw, 38px)', lineHeight: '1' },
-  hintDot: { position: 'absolute', width: 'clamp(10px, 3.5vw, 16px)', height: 'clamp(10px, 3.5vw, 16px)', borderRadius: '50%', zIndex: '3' },
+  hintDot: { position: 'absolute', width: 'clamp(10px, 3.5vw, 16px)', height: 'clamp(10px, 3.5vw, 16px)', borderRadius: '50%', zIndex: 3 },
   rankLabel: { position: 'absolute', top: '2px', left: '3px', fontSize: 'clamp(8px, 2vw, 10px)', color: '#333', opacity: 0.7, fontWeight: 'bold', pointerEvents: 'none' },
   fileLabel: { position: 'absolute', bottom: '2px', right: '4px', fontSize: 'clamp(8px, 2vw, 10px)', color: '#333', opacity: 0.7, fontWeight: 'bold', pointerEvents: 'none' },
   controls: { display: 'flex', gap: '8px', justifyContent: 'center', marginBottom: '10px', flexWrap: 'wrap', width: '100%' },

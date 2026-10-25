@@ -24,14 +24,30 @@ const rooms = {};
 io.on('connection', (socket) => {
   console.log(`Player connected: ${socket.id}`);
 
-  socket.on('join-room', ({ roomCode, playerName }) => {
+  socket.on('join-room', ({ roomCode, playerName, timeControl }) => {
     if (!rooms[roomCode]) {
-      // Initialize fresh room state
+      // Initialize fresh room state with optional time control
+      let whiteTime = null;
+      let blackTime = null;
+      let increment = 0;
+
+      if (timeControl && timeControl.type === 'timed') {
+        whiteTime = timeControl.minutes * 60;
+        blackTime = timeControl.minutes * 60;
+        increment = timeControl.increment || 0;
+      }
+
       rooms[roomCode] = {
         players: [],
-        pgn: '', // Store PGN string instead of FEN
+        pgn: '',
         history: [],
-        chat: []
+        chat: [],
+        timeControl: timeControl || { type: 'untimed' },
+        whiteTime,
+        blackTime,
+        increment,
+        timerActive: false,
+        lastMoveTimestamp: null
       };
     }
 
@@ -49,30 +65,37 @@ io.on('connection', (socket) => {
       player = { id: socket.id, name: playerName || `Player ${color === 'w' ? '1' : '2'}`, color };
       room.players.push(player);
     } else {
-      // Reconnecting player: update socket ID
       player.id = socket.id;
     }
 
     socket.join(roomCode);
 
-    // Sync room state and latest board/history to the joining/reconnecting player
     io.to(roomCode).emit('room-update', {
       room: roomCode,
       players: room.players,
       pgn: room.pgn,
       history: room.history,
-      chat: room.chat
+      chat: room.chat,
+      timeControl: room.timeControl,
+      whiteTime: room.whiteTime,
+      blackTime: room.blackTime
     });
   });
 
-  socket.on('make-move', ({ roomCode, pgn, history, move }) => {
+  socket.on('make-move', ({ roomCode, pgn, history, move, whiteTime, blackTime }) => {
     if (rooms[roomCode]) {
-      // Save move to backend state
       rooms[roomCode].pgn = pgn;
       rooms[roomCode].history = history;
+      if (whiteTime !== undefined) rooms[roomCode].whiteTime = whiteTime;
+      if (blackTime !== undefined) rooms[roomCode].blackTime = blackTime;
 
-      // Broadcast move to opponent
-      socket.to(roomCode).emit('opponent-moved', { pgn, history, move });
+      socket.to(roomCode).emit('opponent-moved', { pgn, history, move, whiteTime, blackTime });
+    }
+  });
+
+  socket.on('time-expired', ({ roomCode, color }) => {
+    if (rooms[roomCode]) {
+      io.to(roomCode).emit('time-expired', { color });
     }
   });
 
@@ -96,7 +119,14 @@ io.on('connection', (socket) => {
       rooms[roomCode].pgn = '';
       rooms[roomCode].history = [];
       rooms[roomCode].chat = [];
-      io.to(roomCode).emit('game-reset');
+      if (rooms[roomCode].timeControl && rooms[roomCode].timeControl.type === 'timed') {
+        rooms[roomCode].whiteTime = rooms[roomCode].timeControl.minutes * 60;
+        rooms[roomCode].blackTime = rooms[roomCode].timeControl.minutes * 60;
+      }
+      io.to(roomCode).emit('game-reset', {
+        whiteTime: rooms[roomCode].whiteTime,
+        blackTime: rooms[roomCode].blackTime
+      });
     }
   });
 
@@ -125,17 +155,15 @@ io.on('connection', (socket) => {
       const playerIndex = room.players.findIndex(p => p.id === socket.id);
 
       if (playerIndex !== -1) {
-        // Keep room alive for 5 minutes to allow player reconnection
         io.to(roomCode).emit('player-disconnected', {
           disconnectedPlayer: room.players[playerIndex].name
         });
 
-        // Optional: Clean up room only if empty for a long period
         setTimeout(() => {
           if (rooms[roomCode] && rooms[roomCode].players.every(p => p.id !== socket.id)) {
-            // Clean up offline player or empty room if needed
+            // Clean up room if needed
           }
-        }, 300000); // 5 minutes grace period
+        }, 300000);
       }
     }
   });
