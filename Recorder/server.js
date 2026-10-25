@@ -29,7 +29,7 @@ io.on('connection', (socket) => {
       // Initialize fresh room state
       rooms[roomCode] = {
         players: [],
-        fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', // Starting position
+        pgn: '', // Store PGN string instead of FEN
         history: []
       };
     }
@@ -58,25 +58,25 @@ io.on('connection', (socket) => {
     io.to(roomCode).emit('room-update', {
       room: roomCode,
       players: room.players,
-      fen: room.fen,
+      pgn: room.pgn,
       history: room.history
     });
   });
 
-  socket.on('make-move', ({ roomCode, fen, history, move }) => {
+  socket.on('make-move', ({ roomCode, pgn, history, move }) => {
     if (rooms[roomCode]) {
       // Save move to backend state
-      rooms[roomCode].fen = fen;
+      rooms[roomCode].pgn = pgn;
       rooms[roomCode].history = history;
 
       // Broadcast move to opponent
-      socket.to(roomCode).emit('opponent-moved', { fen, history, move });
+      socket.to(roomCode).emit('opponent-moved', { pgn, history, move });
     }
   });
 
   socket.on('reset-game', ({ roomCode }) => {
     if (rooms[roomCode]) {
-      rooms[roomCode].fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+      rooms[roomCode].pgn = '';
       rooms[roomCode].history = [];
       io.to(roomCode).emit('game-reset');
     }

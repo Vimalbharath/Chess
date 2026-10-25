@@ -50,22 +50,24 @@ export default function MultiplayerChessApp() {
 
   // --- Socket.io Handlers ---
   useEffect(() => {
-    socket.on('room-update', ({ room, players, fen, history }) => {
+    socket.on('room-update', ({ room, players, pgn, history }) => {
       if (room) setRoomCode(room);
       setPlayersList(players || []);
 
-      // Identify player color assignment
       const me = players?.find(p => p.id === socket.id);
       if (me) {
         setPlayerColor(me.color);
         if (me.color === 'b') setIsFlipped(true);
       }
 
-      // Restore board position and notation history from server memory
-      if (fen) {
-        chessGame.load(fen);
+      // Restore full game history and board via PGN
+      if (pgn) {
+        chessGame.loadPgn(pgn);
+      } else {
+        chessGame.reset();
       }
-      if (history) {
+
+      if (history && Array.isArray(history)) {
         setMoveHistory(history);
       }
 
@@ -80,8 +82,8 @@ export default function MultiplayerChessApp() {
       }
     });
 
-    socket.on('opponent-moved', ({ fen, history }) => {
-      chessGame.load(fen);
+    socket.on('opponent-moved', ({ pgn, history }) => {
+      if (pgn) chessGame.loadPgn(pgn);
       setMoveHistory(history || []);
       setRefreshKey(prev => prev + 1);
       checkGameStatus();
@@ -174,18 +176,16 @@ export default function MultiplayerChessApp() {
         setSelectedSquare(null);
         setLegalMoves([]);
 
-        const newFen = chessGame.fen();
-        // Extract full verbose move history from chess.js
+        const currentPgn = chessGame.pgn(); // Capture full PGN string
         const fullHistory = chessGame.history({ verbose: true });
 
         setMoveHistory(fullHistory);
         setRefreshKey(prev => prev + 1);
         checkGameStatus();
 
-        // Broadcast updated FEN and Move History to server
         socket.emit('make-move', {
           roomCode,
-          fen: newFen,
+          pgn: currentPgn,
           history: fullHistory,
           move
         });
