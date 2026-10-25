@@ -1028,7 +1028,7 @@ const styles = {
   input: { flex: 1, padding: '10px', backgroundColor: '#121212', border: '1px solid #444', borderRadius: '6px', color: '#fff', fontSize: '14px' },
   templateBtn: { flex: 1, padding: '6px 8px', borderRadius: '4px', border: 'none', color: '#fff', fontSize: '12px', cursor: 'pointer' },
   boardContainer: { flex: '1 1 340px', maxWidth: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' },
-  roomHeader: { display: 'flex', justifyContent: 'space-width', width: '100%', maxWidth: '420px', marginBottom: '8px', alignItems: 'center', backgroundColor: '#1a1a1a', padding: '8px 12px', borderRadius: '6px', boxSizing: 'border-box' },
+  roomHeader: { display: 'flex', justifyContent: 'space-between', width: '100%', maxWidth: '420px', marginBottom: '8px', alignItems: 'center', backgroundColor: '#1a1a1a', padding: '8px 12px', borderRadius: '6px', boxSizing: 'border-box' },
   toastBanner: { width: '100%', maxWidth: '420px', backgroundColor: '#d32f2f', color: '#fff', padding: '6px', borderRadius: '4px', fontSize: '13px', textAlign: 'center', marginBottom: '8px' },
   drawBanner: { width: '100%', maxWidth: '420px', backgroundColor: '#9a3412', color: '#fff', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', boxSizing: 'border-box' },
   timerBar: { width: '100%', maxWidth: '420px', display: 'flex', justifyContent: 'space-between', marginBottom: '6px', gap: '8px' },
