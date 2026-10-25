@@ -615,7 +615,7 @@ export default function MultiplayerChessApp() {
             <label style={{ fontSize: '12px', color: '#ffcc00', display: 'block', marginBottom: '6px', fontWeight: 'bold' }}>⏱️ Timer & Templates:</label>
             <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', flexWrap: 'wrap' }}>
               <button style={{ ...styles.templateBtn, backgroundColor: selectedMinutes === 3 && selectedIncrement === 5 ? '#2e7d32' : '#2b5c8f' }} onClick={() => { setTimerType('timed'); setSelectedMinutes(3); setSelectedIncrement(5); }}>3m + 5s</button>
-              <button style={{ ...styles.templateBtn, backgroundColor: selectedMinutes === 10 && selectedIncrement === 0 ? '#2e7d32' : '#2b5c8f' }} onClick={() => { setTimerType('timed'); setSelectedMinutes(10); setSelectedIncrement(0); }}>10m (Rapid)</button>
+              <button style={{ ...styles.templateBtn, backgroundColor: selectedMinutes === 10 && selectedIncrement === 0 ? '#2e7d32' : '#2b5c8f' }} onClick={() => { setTimerType('timed'); setSelectedMinutes(10); setSelectedIncrement(0); }}>10m </button>
               <button style={{ ...styles.templateBtn, backgroundColor: timerType === 'untimed' ? '#2e7d32' : '#333' }} onClick={() => setTimerType('untimed')}>No Timer</button>
             </div>
 
