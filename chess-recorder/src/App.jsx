@@ -41,40 +41,54 @@ export default function MultiplayerChessApp() {
   // Replace your useEffect socket listeners in src/App.jsx with this:
 
   useEffect(() => {
-    socket.on('room-update', ({ room, players }) => {
+    const params = new URLSearchParams(window.location.search);
+    const roomParam = params.get('room');
+    if (roomParam) {
+      setRoomInput(roomParam.toUpperCase());
+    }
+  }, []);
+
+  // --- Socket.io Handlers ---
+  useEffect(() => {
+    socket.on('room-update', ({ room, players, fen, history }) => {
       if (room) setRoomCode(room);
       setPlayersList(players || []);
 
-      // Find my assigned color from the players list
+      // Identify player color assignment
       const me = players?.find(p => p.id === socket.id);
       if (me) {
         setPlayerColor(me.color);
         if (me.color === 'b') setIsFlipped(true);
       }
 
-      if (players && players.length < 2) {
-        setInLobby(false);
-        setStatusText(`Waiting for opponent to join room: ${room || roomCode}...`);
-      } else if (players && players.length >= 2) {
-        setInLobby(false);
-        const moveColor = chessGame.turn() === 'w' ? "White's" : "Black's";
-        setStatusText(`Game on! 2 players connected. ${moveColor} turn.`);
+      // Restore board position and notation history from server memory
+      if (fen) {
+        chessGame.load(fen);
       }
-    });
+      if (history) {
+        setMoveHistory(history);
+      }
 
-    socket.on('player-disconnected', () => {
-      setStatusText('⚠️ Opponent disconnected.');
-    });
+      setInLobby(false);
+      setRefreshKey(prev => prev + 1);
 
-    socket.on('room-full', () => {
-      alert('This room is already full!');
+      if (players && players.length < 2) {
+        setStatusText(`Waiting for opponent to join room: ${room}...`);
+      } else {
+        const moveColor = chessGame.turn() === 'w' ? 'White' : 'Black';
+        setStatusText(`Game in progress. ${moveColor}'s turn to move.`);
+      }
     });
 
     socket.on('opponent-moved', ({ fen, history }) => {
       chessGame.load(fen);
-      setMoveHistory(history);
+      setMoveHistory(history || []);
       setRefreshKey(prev => prev + 1);
       checkGameStatus();
+    });
+
+    socket.on('player-disconnected', ({ disconnectedPlayer }) => {
+      showToast(`⚠️ ${disconnectedPlayer || 'Opponent'} disconnected! Game state is saved for reconnection.`);
     });
 
     socket.on('game-reset', () => {
@@ -84,7 +98,11 @@ export default function MultiplayerChessApp() {
       setIsGameOver(false);
       setMoveHistory([]);
       setRefreshKey(prev => prev + 1);
-      setStatusText("Game reset by opponent. White's turn.");
+      setStatusText("Game reset. White's turn.");
+    });
+
+    socket.on('room-full', () => {
+      alert('This room is already full!');
     });
 
     return () => {
@@ -157,12 +175,20 @@ export default function MultiplayerChessApp() {
         setLegalMoves([]);
 
         const newFen = chessGame.fen();
-        const history = chessGame.history({ verbose: true });
-        setMoveHistory(history);
+        // Extract full verbose move history from chess.js
+        const fullHistory = chessGame.history({ verbose: true });
+
+        setMoveHistory(fullHistory);
         setRefreshKey(prev => prev + 1);
         checkGameStatus();
 
-        socket.emit('make-move', { roomCode, fen: newFen, history });
+        // Broadcast updated FEN and Move History to server
+        socket.emit('make-move', {
+          roomCode,
+          fen: newFen,
+          history: fullHistory,
+          move
+        });
         return true;
       }
     } catch {

@@ -18,7 +18,7 @@ const io = new Server(server, {
   }
 });
 
-// Track active rooms and player names
+// In-Memory Database for active rooms and game states
 const rooms = {};
 
 io.on('connection', (socket) => {
@@ -26,48 +26,80 @@ io.on('connection', (socket) => {
 
   socket.on('join-room', ({ roomCode, playerName }) => {
     if (!rooms[roomCode]) {
-      rooms[roomCode] = { players: [] };
+      // Initialize fresh room state
+      rooms[roomCode] = {
+        players: [],
+        fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', // Starting position
+        history: []
+      };
     }
 
     const room = rooms[roomCode];
 
-    // Check if player is already in this room
-    const existingPlayer = room.players.find(p => p.id === socket.id);
-    if (!existingPlayer) {
+    // Check if player is reconnecting with same name or assigning color
+    let player = room.players.find(p => p.name === playerName);
+
+    if (!player) {
       if (room.players.length >= 2) {
         socket.emit('room-full');
         return;
       }
-
       const color = room.players.length === 0 ? 'w' : 'b';
-      room.players.push({ 
-        id: socket.id, 
-        name: playerName || `Player ${color === 'w' ? '1' : '2'}`, 
-        color 
-      });
+      player = { id: socket.id, name: playerName || `Player ${color === 'w' ? '1' : '2'}`, color };
+      room.players.push(player);
+    } else {
+      // Reconnecting player: update socket ID
+      player.id = socket.id;
     }
 
     socket.join(roomCode);
 
-    // Send room state to everyone in the room
-    io.to(roomCode).emit('room-update', { room: roomCode, players: room.players });
+    // Sync room state and latest board/history to the joining/reconnecting player
+    io.to(roomCode).emit('room-update', {
+      room: roomCode,
+      players: room.players,
+      fen: room.fen,
+      history: room.history
+    });
   });
 
-  socket.on('make-move', ({ roomCode, fen, history }) => {
-    socket.to(roomCode).emit('opponent-moved', { fen, history });
+  socket.on('make-move', ({ roomCode, fen, history, move }) => {
+    if (rooms[roomCode]) {
+      // Save move to backend state
+      rooms[roomCode].fen = fen;
+      rooms[roomCode].history = history;
+
+      // Broadcast move to opponent
+      socket.to(roomCode).emit('opponent-moved', { fen, history, move });
+    }
   });
 
   socket.on('reset-game', ({ roomCode }) => {
-    io.to(roomCode).emit('game-reset');
+    if (rooms[roomCode]) {
+      rooms[roomCode].fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+      rooms[roomCode].history = [];
+      io.to(roomCode).emit('game-reset');
+    }
   });
 
   socket.on('disconnect', () => {
     console.log(`Player disconnected: ${socket.id}`);
     for (const roomCode in rooms) {
-      rooms[roomCode].players = rooms[roomCode].players.filter(p => p.id !== socket.id);
-      io.to(roomCode).emit('room-update', { players: rooms[roomCode].players });
-      if (rooms[roomCode].players.length === 0) {
-        delete rooms[roomCode];
+      const room = rooms[roomCode];
+      const playerIndex = room.players.findIndex(p => p.id === socket.id);
+
+      if (playerIndex !== -1) {
+        // Keep room alive for 5 minutes to allow player reconnection
+        io.to(roomCode).emit('player-disconnected', {
+          disconnectedPlayer: room.players[playerIndex].name
+        });
+
+        // Optional: Clean up room only if empty for a long period
+        setTimeout(() => {
+          if (rooms[roomCode] && rooms[roomCode].players.every(p => p.id !== socket.id)) {
+            // Clean up offline player or empty room if needed
+          }
+        }, 300000); // 5 minutes grace period
       }
     }
   });
@@ -75,5 +107,5 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
-  console.log(`Chess multiplayer server running on port ${PORT}`);
+  console.log(`Chess server with reconnection support running on port ${PORT}`);
 });
