@@ -100,6 +100,24 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('resign', ({ roomCode, player }) => {
+    if (rooms[roomCode]) {
+      socket.to(roomCode).emit('resign', { player });
+    }
+  });
+
+  socket.on('offer-draw', ({ roomCode, player }) => {
+    if (rooms[roomCode]) {
+      socket.to(roomCode).emit('offer-draw', { player });
+    }
+  });
+
+  socket.on('accept-draw', ({ roomCode }) => {
+    if (rooms[roomCode]) {
+      socket.to(roomCode).emit('draw-accepted');
+    }
+  });
+
   socket.on('disconnect', () => {
     console.log(`Player disconnected: ${socket.id}`);
     for (const roomCode in rooms) {

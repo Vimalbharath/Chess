@@ -504,7 +504,9 @@ export default function MultiplayerChessApp() {
 
   const checkKingSquare = chessGame.inCheck() ? getKingSquare(chessGame.turn()) : null;
   const capturedInfo = getCapturedPieces();
-  const lastMove = moveHistory.length > 0 ? moveHistory[moveHistory.length - 1] : null;
+  const lastMove = isReviewing && reviewIndex >= 0
+    ? moveHistory[reviewIndex]
+    : (moveHistory.length > 0 ? moveHistory[moveHistory.length - 1] : null);
 
   // --- Render Lobby ---
   if (inLobby) {
@@ -570,7 +572,7 @@ export default function MultiplayerChessApp() {
       const isLegalTarget = legalMoves.includes(squareName);
       const isCaptureTarget = isLegalTarget && piece !== null;
       const isInCheckSquare = showCheckHighlight && checkKingSquare === squareName;
-      const isLastMoveSquare = showLastMove && lastMove && (lastMove.from === squareName || lastMove.to === squareName) && !isReviewing;
+      const isLastMoveSquare = showLastMove && lastMove && (lastMove.from === squareName || lastMove.to === squareName);
 
       let bg = isDark ? '#b58863' : '#f0d9b5';
       if (isLastMoveSquare) bg = isDark ? '#b9ca41' : '#cdd26a';
@@ -875,7 +877,7 @@ const styles = {
   square: { width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', userSelect: 'none' },
   pieceWrapper: { width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 },
   piece: { fontSize: 'clamp(24px, 7vw, 38px)', lineHeight: '1' },
-  hintDot: { position: 'absolute', width: 'clamp(10px, 3.5vw, 16px)', height: 'clamp(10px, 3.5vw, 16px)', borderRadius: '50%', zIndex: 3 },
+  hintDot: { position: 'absolute', width: 'clamp(10px, 3.5vw, 16px)', height: 'clamp(10px, 3.5vw, 16px)', borderRadius: '50%', zIndex: '3' },
   rankLabel: { position: 'absolute', top: '2px', left: '3px', fontSize: 'clamp(8px, 2vw, 10px)', color: '#333', opacity: 0.7, fontWeight: 'bold', pointerEvents: 'none' },
   fileLabel: { position: 'absolute', bottom: '2px', right: '4px', fontSize: 'clamp(8px, 2vw, 10px)', color: '#333', opacity: 0.7, fontWeight: 'bold', pointerEvents: 'none' },
   controls: { display: 'flex', gap: '8px', justifyContent: 'center', marginBottom: '10px', flexWrap: 'wrap', width: '100%' },
