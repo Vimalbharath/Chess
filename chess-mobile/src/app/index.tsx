@@ -13,7 +13,6 @@ import {
 } from 'react-native';
 import { Chess } from 'chess.js';
 import { io } from 'socket.io-client';
-import * as Clipboard from 'expo-clipboard';
 
 const SOCKET_URL = 'https://chess-server-c5fk.onrender.com';
 const socket = io(SOCKET_URL);
@@ -503,10 +502,9 @@ export default function HomeScreen() {
     setRefreshKey((prev) => prev + 1);
   };
 
-  const copyInviteLink = async () => {
+  const copyInviteLink = () => {
     const inviteUrl = `https://chess-qct9.onrender.com/?room=${roomCode}`;
-    await Clipboard.setStringAsync(inviteUrl);
-    showToast('📋 Invite link copied!');
+    Alert.alert('Invite Link', inviteUrl);
   };
 
   const createRoom = () => {
@@ -532,18 +530,6 @@ export default function HomeScreen() {
       message: chatInput.trim(),
     });
     setChatInput('');
-  };
-
-  const formatFullNotation = () => {
-    if (!moveHistory || moveHistory.length === 0) return '1. ';
-    let text = '';
-    for (let i = 0; i < moveHistory.length; i += 2) {
-      const moveNum = Math.floor(i / 2) + 1;
-      const wMove = moveHistory[i] ? moveHistory[i].san : '';
-      const bMove = moveHistory[i + 1] ? moveHistory[i + 1].san : '';
-      text += `${moveNum}. ${wMove} ${bMove}\n`;
-    }
-    return text.trim();
   };
 
   const formatTime = (seconds) => {
@@ -605,6 +591,7 @@ export default function HomeScreen() {
                   <Text style={styles.subLabel}>Minutes:</Text>
                   <TextInput
                     style={styles.input}
+                    keyboardValue="numeric"
                     keyboardType="numeric"
                     value={String(selectedMinutes)}
                     onChangeText={(val) => setSelectedMinutes(Number(val))}
