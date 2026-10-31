@@ -108,7 +108,7 @@ export default function App() {
   const handleTimeExpiration = (color) => {
     const winner = color === 'w' ? 'Black' : 'White';
     setIsGameOver(true);
-    setStatusText(`⏰ Time out! ${winner} wins on time.`);
+    setStatusText(`Time out! ${winner} wins on time.`);
     socket.emit('time-expired', { roomCode, color });
   };
 
@@ -169,7 +169,7 @@ export default function App() {
     socket.on('time-expired', ({ color }) => {
       const winner = color === 'w' ? 'Black' : 'White';
       setIsGameOver(true);
-      setStatusText(`⏰ Time out! ${winner} wins on time.`);
+      setStatusText(`Time out! ${winner} wins on time.`);
     });
 
     socket.on('chat-message', (msg) => {
@@ -177,7 +177,7 @@ export default function App() {
     });
 
     socket.on('player-disconnected', ({ disconnectedPlayer }) => {
-      showToast(`⚠️ ${disconnectedPlayer || 'Opponent'} disconnected!`);
+      showToast(`${disconnectedPlayer || 'Opponent'} disconnected!`);
     });
 
     socket.on('game-reset', ({ whiteTime: wt, blackTime: bt }) => {
@@ -198,17 +198,17 @@ export default function App() {
 
     socket.on('resign', ({ player }) => {
       setIsGameOver(true);
-      setStatusText(`🏳️ ${player} resigned. Game Over!`);
+      setStatusText(`${player} resigned. Game Over!`);
     });
 
     socket.on('offer-draw', ({ player }) => {
       setDrawOffered(true);
-      showToast(`🤝 ${player} offered a draw!`);
+      showToast(`${player} offered a draw!`);
     });
 
     socket.on('draw-accepted', () => {
       setIsGameOver(true);
-      setStatusText(`🤝 Draw agreed by mutual consent.`);
+      setStatusText(`Draw agreed by mutual consent.`);
     });
 
     socket.on('room-full', () => {
@@ -296,11 +296,11 @@ export default function App() {
       setIsGameOver(true);
       if (chessGame.isCheckmate()) {
         const winner = chessGame.turn() === 'w' ? 'Black' : 'White';
-        setStatusText(`🎉 Checkmate! ${winner} wins the game!`);
+        setStatusText(`Checkmate! ${winner} wins the game!`);
       } else if (chessGame.isDraw()) {
-        setStatusText(`🤝 Game Drawn!`);
+        setStatusText(`Game Drawn!`);
       } else {
-        setStatusText(`🏁 Game Over.`);
+        setStatusText(`Game Over.`);
       }
       return;
     }
@@ -311,7 +311,7 @@ export default function App() {
     if (chessGame.inCheck()) {
       status += ` (${moveColor} is in CHECK!)`;
       if (alertOnCheck && playerColor && chessGame.turn() === playerColor) {
-        showToast(`🚨 ALERT: You are in CHECK!`);
+        showToast(`ALERT: You are in CHECK!`);
       }
     }
     setStatusText(status);
@@ -376,7 +376,7 @@ export default function App() {
         return true;
       }
     } catch {
-      showToast("⚠️ Invalid move!");
+      showToast("Invalid move!");
     }
     return false;
   };
@@ -447,7 +447,7 @@ export default function App() {
           const playerNameFormatted = me ? me.name : 'Player';
           socket.emit('resign', { roomCode, player: playerNameFormatted });
           setIsGameOver(true);
-          setStatusText(`🏳️ You resigned. Game Over!`);
+          setStatusText(`You resigned. Game Over!`);
         },
       },
     ]);
@@ -457,13 +457,13 @@ export default function App() {
     const me = playersList.find((p) => p.id === socket.id);
     const playerNameFormatted = me ? me.name : 'Player';
     socket.emit('offer-draw', { roomCode, player: playerNameFormatted });
-    showToast('🤝 Draw offered to opponent.');
+    showToast('Draw offered to opponent.');
   };
 
   const handleAcceptDraw = () => {
     socket.emit('accept-draw', { roomCode });
     setIsGameOver(true);
-    setStatusText(`🤝 Draw agreed by mutual consent.`);
+    setStatusText(`Draw agreed by mutual consent.`);
     setDrawOffered(false);
   };
 
@@ -563,7 +563,7 @@ export default function App() {
           />
 
           <View style={styles.templateBox}>
-            <Text style={styles.templateTitle}>⏱️ Timer & Templates:</Text>
+            <Text style={styles.templateTitle}>Timer & Templates:</Text>
             <View style={styles.templateButtons}>
               <TouchableOpacity
                 style={[styles.templateBtn, selectedMinutes === 3 && selectedIncrement === 5 ? styles.btnActive : styles.btnInactive]}
@@ -613,13 +613,13 @@ export default function App() {
             <Text style={styles.label}>Alert on Check:</Text>
             <TouchableOpacity onPress={() => setAlertOnCheck(!alertOnCheck)}>
               <Text style={{ color: alertOnCheck ? '#4ade80' : '#888', fontSize: 16, fontWeight: 'bold' }}>
-                {alertOnCheck ? '☑️ ON' : '☐ OFF'}
+                {alertOnCheck ? 'ON' : 'OFF'}
               </Text>
             </TouchableOpacity>
           </View>
 
           <TouchableOpacity style={[styles.primaryButton, { backgroundColor: '#2e7d32', marginBottom: 15 }]} onPress={createRoom}>
-            <Text style={styles.buttonText}>➕ Create New Room</Text>
+            <Text style={styles.buttonText}>Create New Room</Text>
           </TouchableOpacity>
 
           <View style={styles.divider}>
@@ -713,11 +713,11 @@ export default function App() {
           <View>
             <Text style={styles.roomTitle}>Room: <Text style={{ color: '#ffcc00' }}>{roomCode}</Text></Text>
             <Text style={styles.subText}>
-              You: <Text style={{ fontWeight: 'bold' }}>{playerName || 'Player'}</Text> ({playerColor === 'w' ? 'White ⚪' : 'Black ⚫'})
+              You: <Text style={{ fontWeight: 'bold' }}>{playerName || 'Player'}</Text> ({playerColor === 'w' ? 'White' : 'Black'})
             </Text>
           </View>
           <TouchableOpacity style={styles.smallBtn} onPress={copyInviteLink}>
-            <Text style={styles.btnText}>🔗 Invite</Text>
+            <Text style={styles.btnText}>Invite</Text>
           </TouchableOpacity>
         </View>
 
@@ -729,7 +729,7 @@ export default function App() {
 
         {drawOffered && !isGameOver && (
           <View style={styles.drawBanner}>
-            <Text style={{ color: '#fff', fontSize: 13 }}>🤝 Opponent offered a draw!</Text>
+            <Text style={{ color: '#fff', fontSize: 13 }}>Opponent offered a draw!</Text>
             <View style={{ flexDirection: 'row', gap: 6 }}>
               <TouchableOpacity style={[styles.smallBtn, { backgroundColor: '#2e7d32' }]} onPress={handleAcceptDraw}>
                 <Text style={styles.btnText}>Accept</Text>
@@ -744,10 +744,10 @@ export default function App() {
         {timeControl.type === 'timed' && (
           <View style={styles.timerBar}>
             <View style={[styles.clockBox, chessGame.turn() === 'w' && !isGameOver && { borderColor: '#ffcc00' }]}>
-              <Text style={styles.clockText}>⚪ White: {formatTime(whiteTime)}</Text>
+              <Text style={styles.clockText}>White: {formatTime(whiteTime)}</Text>
             </View>
             <View style={[styles.clockBox, chessGame.turn() === 'b' && !isGameOver && { borderColor: '#ffcc00' }]}>
-              <Text style={styles.clockText}>⚫ Black: {formatTime(blackTime)}</Text>
+              <Text style={styles.clockText}>Black: {formatTime(blackTime)}</Text>
             </View>
           </View>
         )}
@@ -786,10 +786,10 @@ export default function App() {
                 <Text style={styles.modalSub}>{statusText}</Text>
                 <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
                   <TouchableOpacity style={styles.newGameButton} onPress={startReview}>
-                    <Text style={styles.buttonText}>🔍 Review</Text>
+                    <Text style={styles.buttonText}>Review</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.newGameButton, { backgroundColor: '#2b5c8f' }]} onPress={handleReset}>
-                    <Text style={styles.buttonText}>🎮 Play Again</Text>
+                    <Text style={styles.buttonText}>Play Again</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -804,7 +804,7 @@ export default function App() {
 
         <View style={styles.controls}>
           <TouchableOpacity style={[styles.controlBtn, { backgroundColor: '#d97706' }]} onPress={() => setIsFlipped(!isFlipped)}>
-            <Text style={styles.btnText}>🔄 Flip</Text>
+            <Text style={styles.btnText}>Flip</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.controlBtn, { backgroundColor: showLastMove ? '#2e7d32' : '#555' }]} onPress={() => setShowLastMove(!showLastMove)}>
             <Text style={styles.btnText}>Last Move</Text>
@@ -812,28 +812,28 @@ export default function App() {
           {!isGameOver && (
             <>
               <TouchableOpacity style={[styles.controlBtn, { backgroundColor: '#9a3412' }]} onPress={handleOfferDraw}>
-                <Text style={styles.btnText}>🤝 Draw</Text>
+                <Text style={styles.btnText}>Draw</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.controlBtn, { backgroundColor: '#a83232' }]} onPress={handleResign}>
-                <Text style={styles.btnText}>🏳️ Resign</Text>
+                <Text style={styles.btnText}>Resign</Text>
               </TouchableOpacity>
             </>
           )}
           {isGameOver && !isReviewing && (
             <TouchableOpacity style={[styles.controlBtn, { backgroundColor: '#2e7d32' }]} onPress={startReview}>
-              <Text style={styles.btnText}>🔍 Review</Text>
+              <Text style={styles.btnText}>Review</Text>
             </TouchableOpacity>
           )}
           {isReviewing && (
             <TouchableOpacity style={[styles.controlBtn, { backgroundColor: '#2e7d32' }]} onPress={exitReview}>
-              <Text style={styles.btnText}>❌ Exit Review</Text>
+              <Text style={styles.btnText}>Exit Review</Text>
             </TouchableOpacity>
           )}
         </View>
 
         <View style={[styles.statusBox, isGameOver && { borderColor: '#ffcc00' }]}>
           <Text style={[styles.statusText, isGameOver && { color: '#ffcc00' }]}>
-            {isReviewing ? `🔍 Reviewing move ${reviewIndex + 1} of ${moveHistory.length}` : statusText}
+            {isReviewing ? `Reviewing move ${reviewIndex + 1} of ${moveHistory.length}` : statusText}
           </Text>
         </View>
 
@@ -881,10 +881,10 @@ export default function App() {
         {isReviewing && (
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
             <TouchableOpacity style={[styles.controlBtn, { flex: 1 }]} onPress={() => reviewIndex > -1 && goToReviewStep(reviewIndex - 1)}>
-              <Text style={styles.btnText}>◀ Prev</Text>
+              <Text style={styles.btnText}>Prev</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.controlBtn, { flex: 1 }]} onPress={() => reviewIndex < moveHistory.length - 1 && goToReviewStep(reviewIndex + 1)}>
-              <Text style={styles.btnText}>Next ▶</Text>
+              <Text style={styles.btnText}>Next</Text>
             </TouchableOpacity>
           </View>
         )}
