@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Chess } from 'chess.js';
 import { io } from 'socket.io-client';
-import LearnHub from './components/LearnHub';
-import CodeLessons from './components/CodeLessons';
+import LearnHub from './LearnHub';
+import CodeLessons from './CodeLessons';
 
 const SOCKET_URL = 'https://chess-server-c5fk.onrender.com';
 const socket = io(SOCKET_URL);
@@ -20,20 +20,20 @@ export default function App() {
   return (
     <div className="app-container" style={{ minHeight: '100vh', backgroundColor: '#121212' }}>
       <header style={navStyles.navbar}>
-        <button 
-          style={{ ...navStyles.navBtn, backgroundColor: activeTab === 'play' ? '#2e7d32' : '#2b5c8f' }} 
+        <button
+          style={{ ...navStyles.navBtn, backgroundColor: activeTab === 'play' ? '#2e7d32' : '#2b5c8f' }}
           onClick={() => setActiveTab('play')}
         >
           ⚔️ Play Online
         </button>
-        <button 
-          style={{ ...navStyles.navBtn, backgroundColor: activeTab === 'learn' ? '#2e7d32' : '#2b5c8f' }} 
+        <button
+          style={{ ...navStyles.navBtn, backgroundColor: activeTab === 'learn' ? '#2e7d32' : '#2b5c8f' }}
           onClick={() => setActiveTab('learn')}
         >
           🎓 Learn & Practice
         </button>
-        <button 
-          style={{ ...navStyles.navBtn, backgroundColor: activeTab === 'code' ? '#2e7d32' : '#2b5c8f' }} 
+        <button
+          style={{ ...navStyles.navBtn, backgroundColor: activeTab === 'code' ? '#2e7d32' : '#2b5c8f' }}
           onClick={() => setActiveTab('code')}
         >
           💻 Code Lessons
