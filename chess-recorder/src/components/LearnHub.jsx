@@ -7,7 +7,7 @@ export default function LearnHub() {
 
   return (
     <div style={styles.container}>
-      <h2 style={{ color: '#ffcc00', marginBottom: '15px' }}>🎓 Learn & Practice Hub</h2>
+      <h2 style={{ color: '#ffcc00', marginBottom: '15px' }}><span>🎓</span> Learn & Practice Hub</h2>
       
       <div style={{ marginBottom: '15px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
         {EPISODES.map(ep => (
