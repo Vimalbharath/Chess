@@ -57,10 +57,15 @@ export const EPISODES = [
   },
   {
     id: "ep-03",
-    title: "Episode 03: The Mighty Rook",
+    title: "Episode 03: Classic Starting Position Challenge",
     youtubeId: "VMj-3S1tku0",
-    taskDescription: "Challenge: The board is empty! Place your Rook correctly on the target square (h5, row 3, col 7).",
-    initialBoard: [],
-    targetSquare: { row: 3, col: 7, piece: 'R' }
+    taskDescription: "Challenge: Place all white pieces in their classic starting positions on ranks 1 and 2!",
+    isClassicSetupChallenge: true,
+    classicTargets: {
+      // Rank 2: Pawns
+      '6-0': 'P', '6-1': 'P', '6-2': 'P', '6-3': 'P', '6-4': 'P', '6-5': 'P', '6-6': 'P', '6-7': 'P',
+      // Rank 1: Major/Minor pieces
+      '7-0': 'R', '7-1': 'N', '7-2': 'B', '7-3': 'Q', '7-4': 'K', '7-5': 'B', '7-6': 'N', '7-7': 'R'
+    }
   }
 ];
