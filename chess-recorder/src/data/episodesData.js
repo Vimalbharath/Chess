@@ -59,13 +59,17 @@ export const EPISODES = [
     id: "ep-03",
     title: "Episode 03: Classic Starting Position Challenge",
     youtubeId: "VMj-3S1tku0",
-    taskDescription: "Challenge: Place all white pieces in their classic starting positions on ranks 1 and 2!",
+    taskDescription: "Challenge: Place all white and black pieces in their correct classic starting positions!",
     isClassicSetupChallenge: true,
     classicTargets: {
-      // Rank 2: Pawns
-      '6-0': 'P', '6-1': 'P', '6-2': 'P', '6-3': 'P', '6-4': 'P', '6-5': 'P', '6-6': 'P', '6-7': 'P',
-      // Rank 1: Major/Minor pieces
-      '7-0': 'R', '7-1': 'N', '7-2': 'B', '7-3': 'Q', '7-4': 'K', '7-5': 'B', '7-6': 'N', '7-7': 'R'
+      // Black Major/Minor pieces (Rank 8, row 0)
+      '0-0': 'bR', '0-1': 'bN', '0-2': 'bB', '0-3': 'bQ', '0-4': 'bK', '0-5': 'bB', '0-6': 'bN', '0-7': 'bR',
+      // Black Pawns (Rank 7, row 1)
+      '1-0': 'bP', '1-1': 'bP', '1-2': 'bP', '1-3': 'bP', '1-4': 'bP', '1-5': 'bP', '1-6': 'bP', '1-7': 'bP',
+      // White Pawns (Rank 2, row 6)
+      '6-0': 'wP', '6-1': 'wP', '6-2': 'wP', '6-3': 'wP', '6-4': 'wP', '6-5': 'wP', '6-6': 'wP', '6-7': 'wP',
+      // White Major/Minor pieces (Rank 1, row 7)
+      '7-0': 'wR', '7-1': 'wN', '7-2': 'wB', '7-3': 'wQ', '7-4': 'wK', '7-5': 'wB', '7-6': 'wN', '7-7': 'wR'
     }
   }
 ];

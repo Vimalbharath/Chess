@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { EPISODES } from '../data/episodesData';
 
-const whitePieceSymbols = {
-  P: '♙', N: '♘', B: '♗', R: '♖', Q: '♕', K: '♔'
+const pieceSymbols = {
+  wP: '♙', wN: '♘', wB: '♗', wR: '♖', wQ: '♕', wK: '♔',
+  bP: '♟', bN: '♞', bB: '♝', bR: '♜', bQ: '♛', bK: '♚'
 };
 
 export default function LearnHub() {
@@ -39,12 +40,10 @@ export default function LearnHub() {
         setPlacedPieces(newPlaced);
         setSelectedTrayPiece(null);
 
-        // Check if all 16 pieces are correctly placed
         if (Object.keys(newPlaced).length === Object.keys(selectedEpisode.classicTargets).length) {
           setPracticeSuccess(true);
         }
       } else {
-        // Incorrect square for this piece
         const tempPlaced = { ...placedPieces, [`${r}-${c}`]: selectedTrayPiece };
         setPlacedPieces(tempPlaced);
         setTimeout(() => {
@@ -150,26 +149,6 @@ export default function LearnHub() {
             </div>
           ) : (
             <>
-              {/* Full Piece Tray */}
-              <div style={styles.pieceTrayContainer}>
-                <span style={{ fontSize: '12px', color: '#aaa', display: 'block', marginBottom: '4px' }}>Select Piece from Tray:</span>
-                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                  {['P', 'R', 'N', 'B', 'Q', 'K'].map(pieceKey => (
-                    <div
-                      key={pieceKey}
-                      onClick={() => !practiceSuccess && setSelectedTrayPiece(pieceKey)}
-                      style={{
-                        ...styles.trayPiece,
-                        backgroundColor: selectedTrayPiece === pieceKey ? '#2e7d32' : '#2b5c8f',
-                        cursor: practiceSuccess ? 'default' : 'pointer'
-                      }}
-                    >
-                      {whitePieceSymbols[pieceKey]}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
               <div style={styles.boardPlaceholder}>
                 <div style={styles.miniBoard}>
                   {Array.from({ length: 8 }).map((_, r) =>
@@ -188,20 +167,45 @@ export default function LearnHub() {
                             alignItems: 'center',
                             justifyContent: 'center',
                             position: 'relative',
-                            fontSize: '22px',
+                            fontSize: '20px',
                             cursor: selectedTrayPiece ? 'pointer' : 'default',
                             boxShadow: isTargetSquare && !placedPiece ? 'inset 0 0 4px 1px rgba(255, 215, 0, 0.5)' : 'none'
                           }}
                         >
-                          {placedPiece && <span style={{ color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}>{whitePieceSymbols[placedPiece]}</span>}
+                          {placedPiece && (
+                            <span style={{ color: placedPiece.startsWith('w') ? '#fff' : '#000', textShadow: placedPiece.startsWith('w') ? '0 1px 2px rgba(0,0,0,0.9)' : '0 1px 2px rgba(255,255,255,0.5)' }}>
+                              {pieceSymbols[placedPiece]}
+                            </span>
+                          )}
                         </div>
                       );
                     })
                   )}
                 </div>
               </div>
+
+              {/* Piece Tray at the downside */}
+              <div style={styles.pieceTrayContainer}>
+                <span style={{ fontSize: '12px', color: '#aaa', display: 'block', marginBottom: '4px' }}>Select Piece from Tray (White & Black):</span>
+                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                  {Object.keys(pieceSymbols).map(pieceKey => (
+                    <div
+                      key={pieceKey}
+                      onClick={() => !practiceSuccess && setSelectedTrayPiece(pieceKey)}
+                      style={{
+                        ...styles.trayPiece,
+                        backgroundColor: selectedTrayPiece === pieceKey ? '#2e7d32' : '#2b5c8f',
+                        cursor: practiceSuccess ? 'default' : 'pointer'
+                      }}
+                    >
+                      {pieceSymbols[pieceKey]}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <p style={{ marginTop: '10px', fontSize: '13px', color: practiceSuccess ? '#4ade80' : '#ffcc00', textAlign: 'center' }}>
-                {practiceSuccess ? '🎉 Fantastic! All pieces placed correctly in the classic starting position!' : selectedTrayPiece ? `Selected ${whitePieceSymbols[selectedTrayPiece]}. Click correct square on rank 1 or 2!` : 'Select a piece from the tray above.'}
+                {practiceSuccess ? '🎉 Fantastic! All pieces placed correctly in starting positions!' : selectedTrayPiece ? `Selected ${pieceSymbols[selectedTrayPiece]}. Click correct square!` : 'Select a piece from the tray below.'}
               </p>
             </>
           )}
@@ -217,8 +221,8 @@ const styles = {
   gridContainer: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' },
   card: { backgroundColor: '#1e1e1e', border: '1px solid #333', borderRadius: '8px', padding: '15px', boxSizing: 'border-box' },
   videoWrapper: { width: '100%', aspectRatio: '16 / 9', backgroundColor: '#000', borderRadius: '6px', overflow: 'hidden' },
-  pieceTrayContainer: { marginBottom: '10px', backgroundColor: '#161616', padding: '8px 12px', borderRadius: '6px', border: '1px solid #333' },
-  trayPiece: { width: '32px', height: '32px', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', color: '#fff' },
-  boardPlaceholder: { width: '100%', aspectRatio: '1 / 1', maxWidth: '280px', margin: '0 auto' },
+  pieceTrayContainer: { marginTop: '12px', backgroundColor: '#161616', padding: '8px 12px', borderRadius: '6px', border: '1px solid #333' },
+  trayPiece: { width: '28px', height: '28px', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', color: '#fff' },
+  boardPlaceholder: { width: '100%', aspectRatio: '1 / 1', maxWidth: '260px', margin: '0 auto' },
   miniBoard: { display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gridTemplateRows: 'repeat(8, 1fr)', width: '100%', height: '100%', border: '2px solid #333' }
 };
