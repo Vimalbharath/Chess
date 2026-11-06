@@ -5,16 +5,40 @@ export default function LearnHub() {
   const [selectedEpisode, setSelectedEpisode] = useState(EPISODES[0]);
   const [quizAnswers, setQuizAnswers] = useState({});
   const [showResults, setShowResults] = useState({});
+  
+  // Practice board state for episodes with placement/challenges
+  const [placedPieces, setPlacedPieces] = useState({});
+  const [selectedTrayPiece, setSelectedTrayPiece] = useState(null);
+  const [practiceSuccess, setPracticeSuccess] = useState(false);
 
   const handleSelectEpisode = (ep) => {
     setSelectedEpisode(ep);
     setQuizAnswers({});
     setShowResults({});
+    setPlacedPieces({});
+    setSelectedTrayPiece(null);
+    setPracticeSuccess(false);
   };
 
   const handleAnswerSelect = (qIdx, optIdx) => {
     setQuizAnswers(prev => ({ ...prev, [qIdx]: optIdx }));
     setShowResults(prev => ({ ...prev, [qIdx]: true }));
+  };
+
+  const handleSquareClick = (r, c) => {
+    if (!selectedEpisode.targetSquare || practiceSuccess) return;
+
+    if (selectedTrayPiece) {
+      if (r === selectedEpisode.targetSquare.row && c === selectedEpisode.targetSquare.col && selectedTrayPiece === selectedEpisode.targetSquare.piece) {
+        setPlacedPieces({ [`${r}-${c}`]: selectedTrayPiece });
+        setPracticeSuccess(true);
+        setSelectedTrayPiece(null);
+      } else {
+        // Incorrect square
+        setPlacedPieces({ [`${r}-${c}`]: selectedTrayPiece });
+        setTimeout(() => setPlacedPieces({}), 1000);
+      }
+    }
   };
 
   return (
@@ -109,35 +133,55 @@ export default function LearnHub() {
             </div>
           ) : (
             <>
+              {/* Piece Tray */}
+              <div style={styles.pieceTray}>
+                <span style={{ fontSize: '13px', color: '#aaa' }}>Available Piece:</span>
+                <div
+                  onClick={() => !practiceSuccess && setSelectedTrayPiece('R')}
+                  style={{
+                    ...styles.trayPiece,
+                    backgroundColor: selectedTrayPiece === 'R' ? '#2e7d32' : '#2b5c8f',
+                    cursor: practiceSuccess ? 'default' : 'pointer'
+                  }}
+                  title="Click to select Rook, then click target square"
+                >
+                  ♖
+                </div>
+              </div>
+
               <div style={styles.boardPlaceholder}>
                 <div style={styles.miniBoard}>
                   {Array.from({ length: 8 }).map((_, r) =>
                     Array.from({ length: 8 }).map((_, c) => {
                       const isDark = (r + c) % 2 === 1;
                       const isTarget = selectedEpisode.targetSquare && selectedEpisode.targetSquare.row === r && selectedEpisode.targetSquare.col === c;
-                      const pieceObj = selectedEpisode.initialBoard.find(p => p.row === r && p.col === c);
+                      const placedPiece = placedPieces[`${r}-${c}`];
 
                       return (
                         <div
                           key={`${r}-${c}`}
+                          onClick={() => handleSquareClick(r, c)}
                           style={{
                             backgroundColor: isDark ? '#b58863' : '#f0d9b5',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             position: 'relative',
-                            fontSize: '24px'
+                            fontSize: '24px',
+                            cursor: selectedTrayPiece ? 'pointer' : 'default'
                           }}
                         >
-                          {isTarget && <span style={{ color: 'gold' }}>⭐</span>}
-                          {pieceObj && pieceObj.piece === 'R' && <span>♖</span>}
+                          {isTarget && !placedPiece && <span style={{ color: 'gold', fontSize: '16px' }}>⭐</span>}
+                          {placedPiece && <span>{placedPiece === 'R' ? '♖' : ''}</span>}
                         </div>
                       );
                     })
                   )}
                 </div>
               </div>
-              <p style={{ marginTop: '10px', fontSize: '13px', color: '#ffcc00' }}>Challenge: Move your piece to the target square!</p>
+              <p style={{ marginTop: '10px', fontSize: '13px', color: practiceSuccess ? '#4ade80' : '#ffcc00', textAlign: 'center' }}>
+                {practiceSuccess ? '🎉 Correct! You placed the Rook on h5 successfully!' : 'Select the Rook from above, then click target square (h5, row 4, col 7)!'}
+              </p>
             </>
           )}
         </div>
@@ -152,6 +196,8 @@ const styles = {
   gridContainer: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' },
   card: { backgroundColor: '#1e1e1e', border: '1px solid #333', borderRadius: '8px', padding: '15px', boxSizing: 'border-box' },
   videoWrapper: { width: '100%', aspectRatio: '16 / 9', backgroundColor: '#000', borderRadius: '6px', overflow: 'hidden' },
-  boardPlaceholder: { width: '100%', aspectRatio: '1 / 1', maxWidth: '320px', margin: '0 auto' },
+  pieceTray: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', backgroundColor: '#161616', padding: '8px 12px', borderRadius: '6px', border: '1px solid #333' },
+  trayPiece: { width: '36px', height: '36px', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', color: '#fff' },
+  boardPlaceholder: { width: '100%', aspectRatio: '1 / 1', maxWidth: '300px', margin: '0 auto' },
   miniBoard: { display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gridTemplateRows: 'repeat(8, 1fr)', width: '100%', height: '100%', border: '2px solid #333' }
 };
