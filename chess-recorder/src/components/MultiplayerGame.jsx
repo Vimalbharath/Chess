@@ -14,42 +14,42 @@ const pieceSymbols = {
 
 const pieceValues = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
 
-export default function App() {
-  const [activeTab, setActiveTab] = useState('play'); // 'play', 'learn', or 'code'
+// function App() {
+//   const [activeTab, setActiveTab] = useState('play'); // 'play', 'learn', or 'code'
 
-  return (
-    <div className="app-container" style={{ minHeight: '100vh', backgroundColor: '#121212' }}>
-      <header style={navStyles.navbar}>
-        <button
-          style={{ ...navStyles.navBtn, backgroundColor: activeTab === 'play' ? '#2e7d32' : '#2b5c8f' }}
-          onClick={() => setActiveTab('play')}
-        >
-          ⚔️ Play Online
-        </button>
-        <button
-          style={{ ...navStyles.navBtn, backgroundColor: activeTab === 'learn' ? '#2e7d32' : '#2b5c8f' }}
-          onClick={() => setActiveTab('learn')}
-        >
-          🎓 Learn & Practice
-        </button>
-        <button
-          style={{ ...navStyles.navBtn, backgroundColor: activeTab === 'code' ? '#2e7d32' : '#2b5c8f' }}
-          onClick={() => setActiveTab('code')}
-        >
-          💻 Code Lessons
-        </button>
-      </header>
+//   return (
+//     <div className="app-container" style={{ minHeight: '100vh', backgroundColor: '#121212' }}>
+//       <header style={navStyles.navbar}>
+//         <button
+//           style={{ ...navStyles.navBtn, backgroundColor: activeTab === 'play' ? '#2e7d32' : '#2b5c8f' }}
+//           onClick={() => setActiveTab('play')}
+//         >
+//           ⚔️ Play Online
+//         </button>
+//         <button
+//           style={{ ...navStyles.navBtn, backgroundColor: activeTab === 'learn' ? '#2e7d32' : '#2b5c8f' }}
+//           onClick={() => setActiveTab('learn')}
+//         >
+//           🎓 Learn & Practice
+//         </button>
+//         <button
+//           style={{ ...navStyles.navBtn, backgroundColor: activeTab === 'code' ? '#2e7d32' : '#2b5c8f' }}
+//           onClick={() => setActiveTab('code')}
+//         >
+//           💻 Code Lessons
+//         </button>
+//       </header>
 
-      <main>
-        {activeTab === 'play' && <MultiplayerChessGame />}
-        {activeTab === 'learn' && <LearnHub />}
-        {activeTab === 'code' && <CodeLessons />}
-      </main>
-    </div>
-  );
-}
+//       <main>
+//         {activeTab === 'play' && <MultiplayerChessGame />}
+//         {activeTab === 'learn' && <LearnHub />}
+//         {activeTab === 'code' && <CodeLessons />}
+//       </main>
+//     </div>
+//   );
+// }
 
-function MultiplayerChessGame() {
+export default function MultiplayerChessGame() {
   const chessGameRef = useRef(new Chess());
   const chessGame = chessGameRef.current;
 
