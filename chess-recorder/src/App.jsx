@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Chess } from 'chess.js';
 import { io } from 'socket.io-client';
-import { getNextValidMoveHint } from './features/gameFeatures';
+import LearnHub from './components/LearnHub';
+import CodeLessons from './components/CodeLessons';
 
 const SOCKET_URL = 'https://chess-server-c5fk.onrender.com';
 const socket = io(SOCKET_URL);
@@ -13,7 +14,42 @@ const pieceSymbols = {
 
 const pieceValues = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
 
-export default function MultiplayerChessApp() {
+export default function App() {
+  const [activeTab, setActiveTab] = useState('play'); // 'play', 'learn', or 'code'
+
+  return (
+    <div className="app-container" style={{ minHeight: '100vh', backgroundColor: '#121212' }}>
+      <header style={navStyles.navbar}>
+        <button 
+          style={{ ...navStyles.navBtn, backgroundColor: activeTab === 'play' ? '#2e7d32' : '#2b5c8f' }} 
+          onClick={() => setActiveTab('play')}
+        >
+          ⚔️ Play Online
+        </button>
+        <button 
+          style={{ ...navStyles.navBtn, backgroundColor: activeTab === 'learn' ? '#2e7d32' : '#2b5c8f' }} 
+          onClick={() => setActiveTab('learn')}
+        >
+          🎓 Learn & Practice
+        </button>
+        <button 
+          style={{ ...navStyles.navBtn, backgroundColor: activeTab === 'code' ? '#2e7d32' : '#2b5c8f' }} 
+          onClick={() => setActiveTab('code')}
+        >
+          💻 Code Lessons
+        </button>
+      </header>
+
+      <main>
+        {activeTab === 'play' && <MultiplayerChessGame />}
+        {activeTab === 'learn' && <LearnHub />}
+        {activeTab === 'code' && <CodeLessons />}
+      </main>
+    </div>
+  );
+}
+
+function MultiplayerChessGame() {
   const chessGameRef = useRef(new Chess());
   const chessGame = chessGameRef.current;
 
@@ -981,9 +1017,14 @@ export default function MultiplayerChessApp() {
   );
 }
 
+const navStyles = {
+  navbar: { display: 'flex', gap: '10px', padding: '12px', backgroundColor: '#1a1a1a', borderBottom: '1px solid #333', justifyContent: 'center' },
+  navBtn: { padding: '8px 16px', borderRadius: '6px', border: 'none', color: '#fff', fontSize: '14px', cursor: 'pointer', fontWeight: 'bold' }
+};
+
 const styles = {
-  container: { display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '20px', maxWidth: '1000px', margin: '0 auto', padding: '12px', backgroundColor: '#121212', color: '#e0e0e0', fontFamily: 'sans-serif', borderRadius: '8px', boxSizing: 'border-box', width: '100%' },
-  lobbyContainer: { display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#121212', fontFamily: 'sans-serif' },
+  container: { display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '20px', maxWidth: '1000px', margin: '20px auto', padding: '12px', backgroundColor: '#121212', color: '#e0e0e0', fontFamily: 'sans-serif', borderRadius: '8px', boxSizing: 'border-box', width: '100%' },
+  lobbyContainer: { display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh', backgroundColor: '#121212', fontFamily: 'sans-serif' },
   lobbyCard: { backgroundColor: '#1e1e1e', padding: '25px', borderRadius: '8px', width: '360px', textAlign: 'center', border: '1px solid #333', color: '#fff', boxSizing: 'border-box' },
   input: { flex: 1, padding: '10px', backgroundColor: '#121212', border: '1px solid #444', borderRadius: '6px', color: '#fff', fontSize: '14px' },
   templateBtn: { flex: 1, padding: '6px 8px', borderRadius: '4px', border: 'none', color: '#fff', fontSize: '12px', cursor: 'pointer' },
