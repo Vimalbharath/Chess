@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import { EPISODES } from '../data/episodesData';
 
-const pieceSymbols = {
+const whitePieceSymbols = {
+  wP: '♙', wN: '♘', wB: '♗', wR: '♖', wQ: '♕', wK: '♔'
+};
+
+const allPieceSymbols = {
   wP: '♙', wN: '♘', wB: '♗', wR: '♖', wQ: '♕', wK: '♔',
   bP: '♟', bN: '♞', bB: '♝', bR: '♜', bQ: '♛', bK: '♚'
 };
@@ -20,7 +24,7 @@ export default function LearnHub() {
     setSelectedEpisode(ep);
     setQuizAnswers({});
     setShowResults({});
-    setPlacedPieces({});
+    setPlacedPieces(ep.prePlaced ? { ...ep.prePlaced } : {});
     setSelectedTrayPiece(null);
     setPracticeSuccess(false);
   };
@@ -33,6 +37,9 @@ export default function LearnHub() {
   const handleSquareClick = (r, c) => {
     if (!selectedEpisode.isClassicSetupChallenge || practiceSuccess) return;
 
+    // Do not allow overwriting preplaced black pieces
+    if (selectedEpisode.prePlaced && selectedEpisode.prePlaced[`${r}-${c}`]) return;
+
     if (selectedTrayPiece) {
       const targetPiece = selectedEpisode.classicTargets[`${r}-${c}`];
       if (targetPiece === selectedTrayPiece) {
@@ -40,7 +47,7 @@ export default function LearnHub() {
         setPlacedPieces(newPlaced);
         setSelectedTrayPiece(null);
 
-        if (Object.keys(newPlaced).length === Object.keys(selectedEpisode.classicTargets).length) {
+        if (Object.keys(newPlaced).length === (Object.keys(selectedEpisode.prePlaced || {}).length + Object.keys(selectedEpisode.classicTargets).length)) {
           setPracticeSuccess(true);
         }
       } else {
@@ -174,7 +181,7 @@ export default function LearnHub() {
                         >
                           {placedPiece && (
                             <span style={{ color: placedPiece.startsWith('w') ? '#fff' : '#000', textShadow: placedPiece.startsWith('w') ? '0 1px 2px rgba(0,0,0,0.9)' : '0 1px 2px rgba(255,255,255,0.5)' }}>
-                              {pieceSymbols[placedPiece]}
+                              {allPieceSymbols[placedPiece]}
                             </span>
                           )}
                         </div>
@@ -184,11 +191,11 @@ export default function LearnHub() {
                 </div>
               </div>
 
-              {/* Piece Tray at the downside */}
+              {/* Piece Tray at the downside (White pieces for user placement) */}
               <div style={styles.pieceTrayContainer}>
-                <span style={{ fontSize: '12px', color: '#aaa', display: 'block', marginBottom: '4px' }}>Select Piece from Tray (White & Black):</span>
-                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'center' }}>
-                  {Object.keys(pieceSymbols).map(pieceKey => (
+                <span style={{ fontSize: '12px', color: '#aaa', display: 'block', marginBottom: '4px' }}>Select White Piece from Tray:</span>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                  {Object.keys(whitePieceSymbols).map(pieceKey => (
                     <div
                       key={pieceKey}
                       onClick={() => !practiceSuccess && setSelectedTrayPiece(pieceKey)}
@@ -198,14 +205,14 @@ export default function LearnHub() {
                         cursor: practiceSuccess ? 'default' : 'pointer'
                       }}
                     >
-                      {pieceSymbols[pieceKey]}
+                      {whitePieceSymbols[pieceKey]}
                     </div>
                   ))}
                 </div>
               </div>
 
               <p style={{ marginTop: '10px', fontSize: '13px', color: practiceSuccess ? '#4ade80' : '#ffcc00', textAlign: 'center' }}>
-                {practiceSuccess ? '🎉 Fantastic! All pieces placed correctly in starting positions!' : selectedTrayPiece ? `Selected ${pieceSymbols[selectedTrayPiece]}. Click correct square!` : 'Select a piece from the tray below.'}
+                {practiceSuccess ? '🎉 Fantastic! All white pieces placed correctly on ranks 1 & 2!' : selectedTrayPiece ? `Selected ${whitePieceSymbols[selectedTrayPiece]}. Click correct square!` : 'Select a white piece from the tray below.'}
               </p>
             </>
           )}
@@ -222,7 +229,7 @@ const styles = {
   card: { backgroundColor: '#1e1e1e', border: '1px solid #333', borderRadius: '8px', padding: '15px', boxSizing: 'border-box' },
   videoWrapper: { width: '100%', aspectRatio: '16 / 9', backgroundColor: '#000', borderRadius: '6px', overflow: 'hidden' },
   pieceTrayContainer: { marginTop: '12px', backgroundColor: '#161616', padding: '8px 12px', borderRadius: '6px', border: '1px solid #333' },
-  trayPiece: { width: '28px', height: '28px', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', color: '#fff' },
+  trayPiece: { width: '32px', height: '32px', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', color: '#fff' },
   boardPlaceholder: { width: '100%', aspectRatio: '1 / 1', maxWidth: '260px', margin: '0 auto' },
   miniBoard: { display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gridTemplateRows: 'repeat(8, 1fr)', width: '100%', height: '100%', border: '2px solid #333' }
 };

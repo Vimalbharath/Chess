@@ -59,13 +59,15 @@ export const EPISODES = [
     id: "ep-03",
     title: "Episode 03: Classic Starting Position Challenge",
     youtubeId: "VMj-3S1tku0",
-    taskDescription: "Challenge: Place all white and black pieces in their correct classic starting positions!",
+    taskDescription: "Challenge: Black pieces are already set! Place all white pieces in their correct starting positions.",
     isClassicSetupChallenge: true,
-    classicTargets: {
+    prePlaced: {
       // Black Major/Minor pieces (Rank 8, row 0)
       '0-0': 'bR', '0-1': 'bN', '0-2': 'bB', '0-3': 'bQ', '0-4': 'bK', '0-5': 'bB', '0-6': 'bN', '0-7': 'bR',
       // Black Pawns (Rank 7, row 1)
-      '1-0': 'bP', '1-1': 'bP', '1-2': 'bP', '1-3': 'bP', '1-4': 'bP', '1-5': 'bP', '1-6': 'bP', '1-7': 'bP',
+      '1-0': 'bP', '1-1': 'bP', '1-2': 'bP', '1-3': 'bP', '1-4': 'bP', '1-5': 'bP', '1-6': 'bP', '1-7': 'bP'
+    },
+    classicTargets: {
       // White Pawns (Rank 2, row 6)
       '6-0': 'wP', '6-1': 'wP', '6-2': 'wP', '6-3': 'wP', '6-4': 'wP', '6-5': 'wP', '6-6': 'wP', '6-7': 'wP',
       // White Major/Minor pieces (Rank 1, row 7)
