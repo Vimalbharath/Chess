@@ -59,11 +59,8 @@ export const EPISODES = [
     id: "ep-03",
     title: "Episode 03: The Mighty Rook",
     youtubeId: "VMj-3S1tku0",
-    taskDescription: "Practice Rook Movement: Move your Rook to (h5) to capture the target!",
-    initialBoard: [
-      { piece: 'R', row: 3, col: 4 },
-      { piece: 'target', row: 3, col: 7 }
-    ],
-    targetSquare: { row: 3, col: 7 }
+    taskDescription: "Challenge: The board is empty! Place your Rook correctly on the target square (h5, row 3, col 7).",
+    initialBoard: [],
+    targetSquare: { row: 3, col: 7, piece: 'R' }
   }
 ];
