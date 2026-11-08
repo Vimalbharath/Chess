@@ -5,15 +5,15 @@ const cors = require('cors');
 
 const app = express();
 
-// Enable CORS for production (replace with your frontend domain if hosted, or keep flexible for testing)
+// Enable CORS for all origins
 app.use(cors());
 
 const server = http.createServer(app);
 
-// Configure Socket.io with production-safe CORS options
+// Configure Socket.io with permissive CORS options for debugging and deployment
 const io = new Server(server, {
   cors: {
-    origin: "https://chess-qct9.onrender.com", // Change to your frontend domain in production, e.g., "https://my-chess-app.vercel.app"
+    origin: "*", 
     methods: ["GET", "POST"]
   }
 });
