@@ -14,47 +14,13 @@ const pieceSymbols = {
 
 const pieceValues = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
 
-// function App() {
-//   const [activeTab, setActiveTab] = useState('play'); // 'play', 'learn', or 'code'
-
-//   return (
-//     <div className="app-container" style={{ minHeight: '100vh', backgroundColor: '#121212' }}>
-//       <header style={navStyles.navbar}>
-//         <button
-//           style={{ ...navStyles.navBtn, backgroundColor: activeTab === 'play' ? '#2e7d32' : '#2b5c8f' }}
-//           onClick={() => setActiveTab('play')}
-//         >
-//           ⚔️ Play Online
-//         </button>
-//         <button
-//           style={{ ...navStyles.navBtn, backgroundColor: activeTab === 'learn' ? '#2e7d32' : '#2b5c8f' }}
-//           onClick={() => setActiveTab('learn')}
-//         >
-//           🎓 Learn & Practice
-//         </button>
-//         <button
-//           style={{ ...navStyles.navBtn, backgroundColor: activeTab === 'code' ? '#2e7d32' : '#2b5c8f' }}
-//           onClick={() => setActiveTab('code')}
-//         >
-//           💻 Code Lessons
-//         </button>
-//       </header>
-
-//       <main>
-//         {activeTab === 'play' && <MultiplayerChessGame />}
-//         {activeTab === 'learn' && <LearnHub />}
-//         {activeTab === 'code' && <CodeLessons />}
-//       </main>
-//     </div>
-//   );
-// }
-
 export default function MultiplayerChessGame() {
   const chessGameRef = useRef(new Chess());
   const chessGame = chessGameRef.current;
 
   // Lobby & Player State
   const [inLobby, setInLobby] = useState(true);
+  const [isConnected, setIsConnected] = useState(socket.connected);
   const [playerName, setPlayerName] = useState('');
   const [roomInput, setRoomInput] = useState('');
   const [roomCode, setRoomCode] = useState('');
@@ -149,6 +115,14 @@ export default function MultiplayerChessGame() {
 
   // --- Socket.io Handlers ---
   useEffect(() => {
+    socket.on('connect', () => {
+      setIsConnected(true);
+    });
+
+    socket.on('disconnect', () => {
+      setIsConnected(false);
+    });
+
     socket.on('room-update', ({ room, players, pgn, history, chat, timeControl: tc, whiteTime: wt, blackTime: bt }) => {
       if (room) setRoomCode(room);
       setPlayersList(players || []);
@@ -251,6 +225,8 @@ export default function MultiplayerChessGame() {
     });
 
     return () => {
+      socket.off('connect');
+      socket.off('disconnect');
       socket.off('room-update');
       socket.off('player-disconnected');
       socket.off('room-full');
@@ -266,7 +242,7 @@ export default function MultiplayerChessGame() {
 
   const showToast = (msg) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(''), 2500);
+    setTimeout(() => setToastMessage(''), 3500);
   };
 
   const getKingSquare = (color) => {
@@ -576,6 +552,10 @@ export default function MultiplayerChessGame() {
   };
 
   const createRoom = () => {
+    if (!socket.connected) {
+      showToast('⚠️ Connecting to server (Render server may be waking up)... Please try again in 10 seconds.');
+      return;
+    }
     const name = playerName.trim() || 'Player 1';
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     const tc = timerType === 'timed'
@@ -586,6 +566,10 @@ export default function MultiplayerChessGame() {
 
   const joinRoom = (e) => {
     e.preventDefault();
+    if (!socket.connected) {
+      showToast('⚠️ Connecting to server (Render server may be waking up)... Please try again in 10 seconds.');
+      return;
+    }
     if (!roomInput.trim()) return;
     const name = playerName.trim() || 'Player 2';
     socket.emit('join-room', { roomCode: roomInput.trim().toUpperCase(), playerName: name });
@@ -633,8 +617,14 @@ export default function MultiplayerChessGame() {
     return (
       <div style={styles.lobbyContainer}>
         <div style={styles.lobbyCard}>
-          <h1 style={{ marginBottom: '8px', fontSize: '22px' }}>Multiplayer Chess</h1>
-          <p style={{ color: '#aaa', marginBottom: '15px', fontSize: '13px' }}>Set your name, timer rules, and preferences.</p>
+          <h1 style={{ marginBottom: '4px', fontSize: '22px' }}>Multiplayer Chess</h1>
+          <div style={{ marginBottom: '12px' }}>
+            <span style={{ fontSize: '12px', color: isConnected ? '#4ade80' : '#f87171' }}>
+              {isConnected ? '🟢 Server Connected' : '🟡 Connecting to Server...'}
+            </span>
+          </div>
+
+          {toastMessage && <div style={{ ...styles.toastBanner, marginBottom: '10px' }}>{toastMessage}</div>}
 
           <div style={{ marginBottom: '12px', textAlign: 'left' }}>
             <label style={{ fontSize: '12px', color: '#888', display: 'block', marginBottom: '4px' }}>Your Name:</label>
@@ -1016,11 +1006,6 @@ export default function MultiplayerChessGame() {
     </div>
   );
 }
-
-const navStyles = {
-  navbar: { display: 'flex', gap: '10px', padding: '12px', backgroundColor: '#1a1a1a', borderBottom: '1px solid #333', justifyContent: 'center' },
-  navBtn: { padding: '8px 16px', borderRadius: '6px', border: 'none', color: '#fff', fontSize: '14px', cursor: 'pointer', fontWeight: 'bold' }
-};
 
 const styles = {
   container: { display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '20px', maxWidth: '1000px', margin: '20px auto', padding: '12px', backgroundColor: '#121212', color: '#e0e0e0', fontFamily: 'sans-serif', borderRadius: '8px', boxSizing: 'border-box', width: '100%' },
