@@ -2,7 +2,6 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
-const { spawn } = require('child_process');
 
 const app = express();
 
@@ -19,56 +18,9 @@ const io = new Server(server, {
   }
 });
 
-// Fast Dockerized Stockfish API Endpoint
-app.get('/api/stockfish', (req, res) => {
-  const { fen, depth = 8, elo = 1200 } = req.query;
-
-  if (!fen) {
-    return res.status(400).json({ error: 'FEN string is required' });
-  }
-
-  // Spawn stockfish binary if available, or fallback
-  let stockfishProc;
-  try {
-    stockfishProc = spawn('stockfish');
-  } catch (err) {
-    return res.status(500).json({ error: 'Stockfish binary not installed on server host' });
-  }
-
-  let bestmove = null;
-  let evaluation = '0.00';
-
-  stockfishProc.stdout.on('data', (data) => {
-    const lines = data.toString().split('\n');
-    for (const line of lines) {
-      if (line.includes('score cp')) {
-        const parts = line.split(' ');
-        const cpIdx = parts.indexOf('cp');
-        if (cpIdx !== -1 && parts[cpIdx + 1]) {
-          evaluation = (parseInt(parts[cpIdx + 1]) / 100).toFixed(2);
-        }
-      }
-      if (line.startsWith('bestmove')) {
-        const parts = line.split(' ');
-        bestmove = parts[1];
-        stockfishProc.kill();
-        res.json({ ok: true, bestmove, evaluation });
-        break;
-      }
-    }
-  });
-
-  stockfishProc.on('error', () => {
-    if (!res.headersSent) {
-      res.status(500).json({ error: 'Stockfish execution error' });
-    }
-  });
-
-  stockfishProc.stdin.write(`uci\n`);
-  stockfishProc.stdin.write(`setoption name UCI_LimitStrength value true\n`);
-  stockfishProc.stdin.write(`setoption name UCI_Elo value ${elo}\n`);
-  stockfishProc.stdin.write(`position fen ${fen}\n`);
-  stockfishProc.stdin.write(`go depth ${depth}\n`);
+// Health Check Endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', service: 'Multiplayer Real-time Server' });
 });
 
 // In-Memory Database for active rooms and game states

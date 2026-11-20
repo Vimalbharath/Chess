@@ -1,7 +1,4 @@
-FROM node:18-bullseye
-
-# Install Stockfish engine inside the container
-RUN apt-get update && apt-get install -y stockfish && rm -rf /var/lib/apt/lists/*
+FROM node:18-alpine
 
 WORKDIR /app
 
