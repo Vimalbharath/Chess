@@ -1,14 +1,6 @@
-FROM node:18-bullseye-slim
+FROM node:20-bookworm-slim
 
-# Install curl and tar to fetch the official Stockfish 19 Linux binary
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    ca-certificates \
-    tar \
-    && rm -rf /var/lib/apt/lists/*
-
-# Download and install Stockfish 19 universal Linux x86-64 binary
-RUN curl -L https://github.com/official-stockfish/Stockfish/releases/download/sf_19/stockfish-ubuntu-x86-64.tar -o /tmp/stockfish.tar \
+RUN node -e "fetch('https://github.com/official-stockfish/Stockfish/releases/download/sf_19/stockfish-ubuntu-x86-64.tar').then(r => r.arrayBuffer()).then(b => require('fs').writeFileSync('/tmp/stockfish.tar', Buffer.from(b)))" \
     && tar -xf /tmp/stockfish.tar -C /tmp \
     && mv /tmp/stockfish/stockfish-ubuntu-x86-64 /usr/local/bin/stockfish \
     && chmod +x /usr/local/bin/stockfish \
@@ -17,7 +9,7 @@ RUN curl -L https://github.com/official-stockfish/Stockfish/releases/download/sf
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm install --omit=dev
 
 COPY . .
 
