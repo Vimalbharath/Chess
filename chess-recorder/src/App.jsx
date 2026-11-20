@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import MultiplayerGame from './components/MultiplayerGame';
+import PlayStockfish from './components/PlayStockfish';
 import LearnHub from './components/LearnHub';
 import CodeLessons from './components/CodeLessons';
 import Home from './components/Home';
@@ -36,6 +37,9 @@ export default function App() {
           <Link to="/play" onClick={closeSidebar} style={navStyles.navLink}>
             ⚔️ Play Online
           </Link>
+          <Link to="/stockfish" onClick={closeSidebar} style={navStyles.navLink}>
+            🤖 Play Stockfish
+          </Link>
           <Link to="/learn" onClick={closeSidebar} style={navStyles.navLink}>
             🎓 Learn & Practice
           </Link>
@@ -50,6 +54,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/play" element={<MultiplayerGame />} />
+            <Route path="/stockfish" element={<PlayStockfish />} />
             <Route path="/learn" element={<LearnHub />} />
             <Route path="/code" element={<CodeLessons />} />
           </Routes>
