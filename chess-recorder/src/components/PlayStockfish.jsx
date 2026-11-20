@@ -21,7 +21,7 @@ export default function PlayStockfish() {
   const [elo, setElo] = useState(1200);
   const [playerColor, setPlayerColor] = useState('w');
   const [engineSource, setEngineSource] = useState('docker'); // 'public' or 'docker'
-  const [dockerApiUrl, setDockerApiUrl] = useState('https://chess-stockfish-engine.onrender.com/api/stockfish');
+  const [dockerApiUrl, setDockerApiUrl] = useState('https://chess-stockfish-xcnf.onrender.com/api/stockfish');
 
   const [gameStarted, setGameStarted] = useState(false);
   const [isAiThinking, setIsAiThinking] = useState(false);
