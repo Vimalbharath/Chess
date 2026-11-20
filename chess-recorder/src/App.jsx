@@ -41,7 +41,7 @@ export default function App() {
             🤖 Play Stockfish
           </Link>
           <Link to="/learn" onClick={closeSidebar} style={navStyles.navLink}>
-            🎓 Learn & Practice
+            🎓 Learn {"&"} Practice
           </Link>
           <Link to="/code" onClick={closeSidebar} style={navStyles.navLink}>
             💻 Code Lessons

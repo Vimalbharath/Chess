@@ -90,7 +90,7 @@ export default function PlayStockfish() {
         setRefreshKey(prev => prev + 1);
         checkGameStatus();
       }
-    } finally {
+    } opacity {
       setIsAiThinking(false);
     }
   };
@@ -309,7 +309,7 @@ export default function PlayStockfish() {
 
           {/* Side Panel: Game Info & Analysis */}
           <div style={{ backgroundColor: '#1e1e1e', padding: '15px', borderRadius: '8px', border: '1px solid #333' }}>
-            <h3 style={{ margin: '0 0 10px 0', color: '#ffcc00' }}>📋 Move History & Analysis</h3>
+            <h3 style={{ margin: '0 0 10px 0', color: '#ffcc00' }}>📋 Move History {"&"} Analysis</h3>
 
             {isGameOver && !isReviewing && (
               <button onClick={startReview} style={{ width: '100%', padding: '10px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', marginBottom: '15px' }}>
