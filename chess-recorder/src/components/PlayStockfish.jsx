@@ -20,6 +20,9 @@ export default function PlayStockfish() {
 
   const [elo, setElo] = useState(1200);
   const [playerColor, setPlayerColor] = useState('w');
+  const [engineSource, setEngineSource] = useState('public'); // 'public' or 'docker'
+  const [dockerApiUrl, setDockerApiUrl] = useState('http://localhost:3001/api/stockfish');
+
   const [gameStarted, setGameStarted] = useState(false);
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [statusText, setStatusText] = useState('');
@@ -40,7 +43,6 @@ export default function PlayStockfish() {
   const [bestMoveHint, setBestMoveHint] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  // Map ELO rating to valid Stockfish Depth (Must be >= 6 for stockfish.online API)
   const getDepthFromElo = (eloVal) => {
     if (eloVal <= 1000) return 6;
     if (eloVal <= 1400) return 8;
@@ -72,24 +74,34 @@ export default function PlayStockfish() {
     if (chess.isGameOver()) return;
     setIsAiThinking(true);
     const depth = getDepthFromElo(elo);
-    const currentFen = encodeURIComponent(chess.fen());
+    const currentFen = chess.fen();
 
     try {
-      const res = await fetch(`https://stockfish.online/api/s/v2.php?fen=${currentFen}&depth=${depth}`);
-      const data = await res.json();
+      let moveStr = null;
 
-      if (data.ok && data.bestmove) {
-        const moveStr = data.bestmove.split(' ')[1];
-        if (moveStr) {
-          const from = moveStr.substring(0, 2);
-          const to = moveStr.substring(2, 4);
-          const promotion = moveStr.length > 4 ? moveStr.substring(4, 5) : undefined;
-
-          chess.move({ from, to, promotion });
-          setMoveHistory(chess.history({ verbose: true }));
-          setRefreshKey(prev => prev + 1);
-          checkGameStatus();
+      if (engineSource === 'docker') {
+        const res = await fetch(`${dockerApiUrl}?fen=${encodeURIComponent(currentFen)}&depth=${depth}&elo=${elo}`);
+        const data = await res.json();
+        if (data.bestmove) {
+          moveStr = data.bestmove;
         }
+      } else {
+        const res = await fetch(`https://stockfish.online/api/s/v2.php?fen=${encodeURIComponent(currentFen)}&depth=${depth}`);
+        const data = await res.json();
+        if (data.ok && data.bestmove) {
+          moveStr = data.bestmove.split(' ')[1];
+        }
+      }
+
+      if (moveStr) {
+        const from = moveStr.substring(0, 2);
+        const to = moveStr.substring(2, 4);
+        const promotion = moveStr.length > 4 ? moveStr.substring(4, 5) : undefined;
+
+        chess.move({ from, to, promotion });
+        setMoveHistory(chess.history({ verbose: true }));
+        setRefreshKey(prev => prev + 1);
+        checkGameStatus();
       } else {
         fallbackRandomMove();
       }
@@ -303,14 +315,22 @@ export default function PlayStockfish() {
     setEvalText('Evaluating...');
     setBestMoveHint('');
     try {
-      const res = await fetch(`https://stockfish.online/api/s/v2.php?fen=${encodeURIComponent(fen)}&depth=10`);
-      const data = await res.json();
-
-      if (data.ok) {
-        setEvalText(`Evaluation: ${data.evaluation !== undefined ? data.evaluation : 'N/A'} (Mate: ${data.mate ?? 'None'})`);
+      if (engineSource === 'docker') {
+        const res = await fetch(`${dockerApiUrl}?fen=${encodeURIComponent(fen)}&depth=10`);
+        const data = await res.json();
         if (data.bestmove) {
-          const bMove = data.bestmove.split(' ')[1];
-          setBestMoveHint(bMove ? `Best Move: ${bMove}` : '');
+          setEvalText(`Evaluation: ${data.evaluation !== undefined ? data.evaluation : 'N/A'}`);
+          setBestMoveHint(`Best Move: ${data.bestmove}`);
+        }
+      } else {
+        const res = await fetch(`https://stockfish.online/api/s/v2.php?fen=${encodeURIComponent(fen)}&depth=10`);
+        const data = await res.json();
+        if (data.ok) {
+          setEvalText(`Evaluation: ${data.evaluation !== undefined ? data.evaluation : 'N/A'} (Mate: ${data.mate ?? 'None'})`);
+          if (data.bestmove) {
+            const bMove = data.bestmove.split(' ')[1];
+            setBestMoveHint(bMove ? `Best Move: ${bMove}` : '');
+          }
         }
       }
     } catch (e) {
@@ -432,7 +452,27 @@ export default function PlayStockfish() {
           </select>
         </div>
 
-        <button onClick={startGame} style={{ ...styles.button, backgroundColor: '#2e7d32', padding: '8px 16px', fontWeight: 'bold' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <label style={{ fontWeight: 'bold', fontSize: '14px' }}>Engine Source:</label>
+          <select value={engineSource} onChange={e => setEngineSource(e.target.value)} disabled={gameStarted && !isGameOver} style={styles.select}>
+            <option value="public">Cloud Public API (Stockfish.online)</option>
+            <option value="docker">⚡ Local / Dockerised Stockfish</option>
+          </select>
+        </div>
+
+        {engineSource === 'docker' && (
+          <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', marginTop: '5px' }}>
+            <label style={{ fontSize: '12px', color: '#888' }}>Docker URL:</label>
+            <input
+              type="text"
+              value={dockerApiUrl}
+              onChange={e => setDockerApiUrl(e.target.value)}
+              style={{ flex: 1, padding: '4px 8px', borderRadius: '4px', backgroundColor: '#121212', color: '#fff', border: '1px solid #444', fontSize: '12px' }}
+            />
+          </div>
+        )}
+
+        <button onClick={startGame} style={{ ...styles.button, backgroundColor: '#2e7d32', padding: '8px 16px', fontWeight: 'bold', width: '100%' }}>
           {gameStarted ? 'Restart Game' : 'Start Game'}
         </button>
       </div>
