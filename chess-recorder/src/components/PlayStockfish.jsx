@@ -20,8 +20,8 @@ export default function PlayStockfish() {
 
   const [elo, setElo] = useState(1200);
   const [playerColor, setPlayerColor] = useState('w');
-  const [engineSource, setEngineSource] = useState('public'); // 'public' or 'docker'
-  const [dockerApiUrl, setDockerApiUrl] = useState('http://localhost:3001/api/stockfish');
+  const [engineSource, setEngineSource] = useState('docker'); // 'public' or 'docker'
+  const [dockerApiUrl, setDockerApiUrl] = useState('https://chess-server-c5fk.onrender.com/api/stockfish');
 
   const [gameStarted, setGameStarted] = useState(false);
   const [isAiThinking, setIsAiThinking] = useState(false);
@@ -455,14 +455,14 @@ export default function PlayStockfish() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <label style={{ fontWeight: 'bold', fontSize: '14px' }}>Engine Source:</label>
           <select value={engineSource} onChange={e => setEngineSource(e.target.value)} disabled={gameStarted && !isGameOver} style={styles.select}>
+            <option value="docker">⚡ Render Dockerised Engine</option>
             <option value="public">Cloud Public API (Stockfish.online)</option>
-            <option value="docker">⚡ Local / Dockerised Stockfish</option>
           </select>
         </div>
 
         {engineSource === 'docker' && (
           <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', marginTop: '5px' }}>
-            <label style={{ fontSize: '12px', color: '#888' }}>Docker URL:</label>
+            <label style={{ fontSize: '12px', color: '#888' }}>Engine API URL:</label>
             <input
               type="text"
               value={dockerApiUrl}
